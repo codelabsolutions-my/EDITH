@@ -42,7 +42,9 @@ def validate_connector(connector: Connector) -> None:
         )
 
     if not _KEY_RE.match(manifest.key):
-        raise ConnectorError(f"connector key {manifest.key!r} must be snake_case (^[a-z][a-z0-9_]*$)")
+        raise ConnectorError(
+            f"connector key {manifest.key!r} must be snake_case (^[a-z][a-z0-9_]*$)"
+        )
 
     if manifest.auth is AuthKind.OAUTH2 and manifest.oauth is None:
         raise ConnectorError(f"{manifest.key}: auth=oauth2 requires an `oauth` config")

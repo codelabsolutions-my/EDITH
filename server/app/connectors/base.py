@@ -17,11 +17,11 @@ from __future__ import annotations
 import abc
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
-from enum import Enum
+from enum import StrEnum
 from typing import Any
 
 
-class ToolClass(str, Enum):
+class ToolClass(StrEnum):
     """Trust class for a tool — enforced by the agent core.
 
     ``AUTO`` runs immediately. ``CONFIRM`` requires explicit user confirmation
@@ -32,7 +32,7 @@ class ToolClass(str, Enum):
     CONFIRM = "confirm"
 
 
-class AuthKind(str, Enum):
+class AuthKind(StrEnum):
     """How a connector authenticates with its service."""
 
     NONE = "none"
