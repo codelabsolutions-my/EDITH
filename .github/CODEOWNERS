@@ -1,0 +1,12 @@
+# Default owners for everything in the repo.
+# Replace @edith-core with your team/handle once the org is set up.
+*                           @edith-core
+
+# Connector framework — changes here affect every contributor.
+/server/app/connectors/     @edith-core
+
+# Governance & security require core review.
+/LICENSE                    @edith-core
+/SECURITY.md                @edith-core
+/CODE_OF_CONDUCT.md         @edith-core
+/.github/                   @edith-core

@@ -1,0 +1,69 @@
+name: 🔌 New connector proposal
+description: Propose a new third-party connector for the EDITH agent
+labels: ["connector", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for proposing a connector! Connectors let EDITH act on a service.
+        Please read the [connector cookbook](../../server/app/connectors/README.md)
+        and the [connector security model](../../SECURITY.md#connector-security-model)
+        first. We only accept **official, ToS-compliant** APIs.
+  - type: input
+    id: service
+    attributes:
+      label: Service
+      placeholder: e.g. Todoist, Notion, Google Tasks
+    validations:
+      required: true
+  - type: textarea
+    id: capabilities
+    attributes:
+      label: What should EDITH be able to do?
+      description: List the tools (actions). Mark each as auto (reversible/read) or confirm (external/irreversible).
+      placeholder: |
+        - list_tasks (auto)
+        - add_task (auto)
+        - complete_task (auto)
+        - delete_task (confirm)
+    validations:
+      required: true
+  - type: dropdown
+    id: auth
+    attributes:
+      label: Authentication
+      options:
+        - OAuth 2.0
+        - API key
+        - Device / on-device
+        - None
+    validations:
+      required: true
+  - type: input
+    id: api-docs
+    attributes:
+      label: Official API docs URL
+    validations:
+      required: true
+  - type: textarea
+    id: scopes
+    attributes:
+      label: Minimal scopes required
+      description: The least-privilege scopes, requested incrementally per feature.
+  - type: checkboxes
+    id: compliance
+    attributes:
+      label: Compliance
+      options:
+        - label: This uses an official, ToS-compliant API (no scraping / unofficial clients)
+          required: true
+        - label: I'm willing to help implement and maintain it
+  - type: dropdown
+    id: tier
+    attributes:
+      label: Intended trust tier
+      options:
+        - Community (contributor-maintained)
+        - Official (propose for core team)
+    validations:
+      required: true

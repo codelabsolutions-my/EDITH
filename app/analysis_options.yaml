@@ -1,0 +1,17 @@
+# Dart/Flutter analysis options for the EDITH app.
+# Resolves once the app is scaffolded (`flutter create` + `flutter pub get`).
+include: package:flutter_lints/flutter.yaml
+
+analyzer:
+  language:
+    strict-casts: true
+    strict-raw-types: true
+  errors:
+    todo: ignore
+
+linter:
+  rules:
+    - prefer_const_constructors
+    - prefer_final_locals
+    - avoid_print
+    - require_trailing_commas

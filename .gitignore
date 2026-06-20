@@ -1,0 +1,63 @@
+# ─── Secrets & local config ───────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p8
+*-credentials.json
+service-account*.json
+secrets/
+
+# ─── Python (server/) ─────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+build/
+dist/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+.python-version
+
+# ─── Flutter / Dart (app/) ────────────────────────────────────────────────
+app/.dart_tool/
+app/.flutter-plugins
+app/.flutter-plugins-dependencies
+app/build/
+app/.pub-cache/
+app/.pub/
+app/ios/Pods/
+app/ios/.symlinks/
+app/android/.gradle/
+app/android/local.properties
+app/android/key.properties
+*.iml
+.flutter-plugins*
+
+# ─── Open-core boundary (private, not in this repo) ───────────────────────
+# Billing, cloud-ops, and internal infra live in a separate private repo.
+server/app/billing/
+server/app/_private/
+infra/private/
+
+# ─── Editors & OS ─────────────────────────────────────────────────────────
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.shared.json
+*.swp
+*~
+
+# ─── Misc ─────────────────────────────────────────────────────────────────
+*.log
+node_modules/
+.tmp/
