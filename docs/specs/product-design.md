@@ -181,17 +181,23 @@ edith/
 ├── server/                       # FastAPI (Python 3.12)
 │   ├── app/
 │   │   ├── main.py  ws.py        # app + WebSocket hub (/ws), per-user sessions
-│   │   ├── voice/                # streaming pipeline
-│   │   │   ├── asr.py            #   ILMU ASR (streaming)
-│   │   │   ├── tts.py            #   ILMU TTS (streaming)
-│   │   │   ├── vad.py            #   VAD + endpointing
-│   │   │   ├── pipeline.py       #   orchestrates asr→llm→tts + barge-in
+│   │   ├── events.py             # typed event vocab (inbound/outbound)
+│   │   ├── session.py            # per-connection lifecycle (demux + pump + loop)
+│   │   ├── voice/                # transport seam + streaming pipeline
+│   │   │   ├── transport.py      #   Transport ABC + UserTurn (the VoiceSession seam)
+│   │   │   ├── text_transport.py #   TextTransport stub — text in→agent→text out (M0)
+│   │   │   ├── asr.py            #   ILMU ASR (streaming) — M2
+│   │   │   ├── tts.py            #   ILMU TTS (streaming) — M2
+│   │   │   ├── vad.py            #   VAD + endpointing — M2
+│   │   │   ├── pipeline.py       #   orchestrates asr→llm→tts + barge-in — M2
 │   │   │   └── realtime_compat.py#   optional OpenAI Realtime A/B harness
 │   │   ├── agent/                # tool-calling core
-│   │   │   ├── llm.py            #   LLM abstraction (ILMU default, frontier fallback)
-│   │   │   ├── registry.py  execute.py  confirm.py
-│   │   │   └── tools/            #   memory, time, web (P1); calendar/email (P2)
-│   │   ├── auth/                 # OIDC RP + JWT sessions + linking
+│   │   │   ├── loop.py           #   AgentLoop — streaming tool-call orchestrator
+│   │   │   ├── llm.py            #   LLMProvider ABC + StubLLM (ILMU/frontier — M2)
+│   │   │   ├── catalog.py        #   ToolCatalog over connectors.registry → specs
+│   │   │   ├── confirm.py        #   ConfirmGate (server-enforced) + memory.py + prompts.py
+│   │   │   └── tools/            #   foundational: memory, time, web (P1); calendar/email (P2)
+│   │   ├── auth.py               # M0 stub verify; OIDC RP + JWT sessions + linking — M1
 │   │   ├── integrations/         # OAuth connectors (Google, Microsoft) — P2
 │   │   ├── proactivity/          # scheduler, workers, push — P3
 │   │   ├── memory.py  prompts.py  db.py  config.py
