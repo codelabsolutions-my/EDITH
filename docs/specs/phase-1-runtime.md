@@ -1,9 +1,12 @@
 # Phase 1 — Runtime architecture (Transport + agent loop)
 
-> Load-bearing design for the EDITH agent runtime. Status: **M0 implemented**
-> (text-mode, `StubLLM`, in-memory memory, stub auth). Voice (`voice/pipeline.py`,
-> `asr.py`, `tts.py`, `vad.py`) and real auth/DB land in M1/M2 against the same
-> seams — nothing in this doc changes when they do.
+> Load-bearing design for the EDITH agent runtime. Status: **M1 implemented**
+> (text-mode, real Postgres persistence, JWT session auth, ILMU `nemo-super` LLM
+> with `StubLLM` fallback). Voice (`voice/pipeline.py`, `asr.py`, `tts.py`,
+> `vad.py`) lands in M2 against the same seams — nothing in this doc changes when
+> it does. The agent loop, Transport, and LLM seams are untouched by the M1 swaps;
+> only the implementations behind `Memory`, auth, and the new `TurnRecorder` seam
+> changed.
 
 ## Core principle — text and voice are one loop
 
@@ -203,14 +206,25 @@ without an explicit reply, so nothing irreversible escapes a barge-in.
 4. `tool_event` gains an `error` state.
 5. `confirm_request.action_id` is echoed back exactly in the `confirm` reply.
 
-## Stubbed for later milestones
+## Milestone status
 
-| Stub (M0) | Real (milestone) |
-|---|---|
-| `verify_jwt` accepts any token | OIDC RP + JWT verify/refresh (M1) |
-| module-level dict memory | Postgres `memories` + tsvector (M1) |
-| `extract_after_turn` heuristic | LLM extraction + dedupe (M1) |
-| in-memory action log | `action_log` table (M1) |
-| `web_lookup` canned dict | real search API (post-MVP) |
-| `StubLLM` | ILMU LLM / frontier fallback (M2/bake-off) |
-| `TextTransport` only | `VoicePipeline` (VAD→ASR→loop→TTS) (M2) |
+| Concern | M0 | M1 (now) | Later |
+|---|---|---|---|
+| Auth | `verify_jwt` accepts any token | **Real JWT sessions** (`auth/`): mint access + refresh, rotation + reuse-revocation; `/auth/dev-login` (non-prod). WS verifies our JWT | OIDC RP id_token verify (`auth/oidc.py` seam) when provider creds land |
+| Memory | module-level dict | **`PgMemory`** — Postgres `memories` + `tsvector` recall (interface unchanged; `InMemoryMemory` retained for tests/DB-less) | embeddings + reranker (P2+) |
+| Messages / actions | none / in-memory list | **persisted** via the `TurnRecorder` seam → `messages` + `action_log` | — |
+| Conversations | none | **row per session** (`conversations`) | summaries / resume |
+| `extract_after_turn` | no-op | no-op (explicit `remember` persists) | LLM extraction + dedupe |
+| LLM | `StubLLM` | **`IlmuLLM` (`nemo-super`)** when `ILMU_API_KEY` set; `StubLLM` fallback | `ilmu-v3.1` Manglish gen / frontier escape hatch |
+| Email | — | **`gmail` connector** (IMAP read via App Password; `read_recent_emails`, `search_emails`) | Gmail OAuth + incremental scopes (P2) |
+| `web_lookup` | canned dict | canned dict | real search API (post-MVP) |
+| Transport | `TextTransport` | `TextTransport` | `VoicePipeline` (VAD→ASR→loop→TTS) (M2) |
+
+### M1 wiring notes
+
+- The loop appends an OpenAI-correct **assistant tool-call message** before tool
+  results, so a real provider's multi-round tool calls round-trip (`StubLLM`
+  ignores history, so it is unaffected).
+- `main.py` runs a lifespan that applies migrations and opens the asyncpg pool; the
+  app still runs **DB-less** (in-memory fallback) when Postgres is unreachable, so
+  tests and the offline demo work without a database.

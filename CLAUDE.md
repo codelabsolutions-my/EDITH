@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**Pre-implementation.** The repo currently contains only specs — no application code, build tooling, or tests yet. Before writing code, read the two source-of-truth documents:
+**M1 implemented (text-mode).** The agent runtime, real auth + Postgres persistence, the ILMU LLM, and a Flutter text client exist and are tested; voice (M2) is not built yet. The source-of-truth documents remain authoritative for the overall design — read them before extending:
 
 - `docs/specs/product-design.md` — full vision, locked architecture, trust model, integration feasibility, 6-phase roadmap
 - `docs/specs/phase-1-mvp.md` — detailed Phase 1 build plan: gating spikes, build order, streaming/agent protocol, auth flow, DB schema
@@ -53,4 +53,20 @@ P1 Foundation + agent core (+ gating spikes) → P2 wedge (calendar/email/contac
 
 ## Commands
 
-No build/lint/test commands exist yet — tooling is established when `server/` and `app/` are scaffolded. Per the specs, expect: `app/` via Flutter (`flutter run`/`flutter test`), `server/` via `pyproject.toml` + a `Dockerfile`, yoyo for migrations, and a root `docker-compose.yml` (server + postgres) for local dev. Update this section once they land.
+**Status: M1 implemented** (text-mode end-to-end). The server is a runnable FastAPI app with real Postgres persistence, JWT session auth, and the ILMU `nemo-super` LLM (falls back to a deterministic `StubLLM` when `ILMU_API_KEY` is unset). The Flutter text client is scaffolded. Voice (ASR/TTS/VAD pipeline) is M2.
+
+Local dev (from repo root unless noted):
+
+```bash
+docker compose up -d postgres          # Postgres on host port 5434 (5432/5433 taken)
+# server (from server/, with a .venv created via: uv sync --all-extras --dev)
+uvicorn app.main:app --reload          # applies migrations on startup, opens the pool
+.venv/bin/python -m pytest             # 54 tests; DB tests auto-skip if Postgres is down
+.venv/bin/ruff check app tests && .venv/bin/ruff format --check app tests
+.venv/bin/mypy app
+docker compose build server            # build the deploy image (python 3.12)
+# app (from app/)
+flutter pub get && flutter analyze && flutter test
+```
+
+Auth for local use: `POST /auth/dev-login {"email","display_name"}` → tokens (non-production only); then open `/ws` with `{"type":"auth","token":"<access>"}`. To let EDITH **read email**, set `GMAIL_ADDRESS` + `GMAIL_APP_PASSWORD` (a Google App Password) in `server/.env` — the `gmail` connector's `read_recent_emails`/`search_emails` tools then go live.
