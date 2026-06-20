@@ -101,13 +101,7 @@ Continuous bidirectional stream over `/ws` (not turn-based request/response).
 | `transcript` | `{"type":"transcript","role":"user\|edith","text":"...","final":bool}` | Live transcript (both sides) |
 | audio | binary frames | EDITH's streamed speech |
 | `confirm_request` | `{"type":"confirm_request","action_id":"...","summary":"Reply Ian 'I'll be late' — send?"}` | Agent needs a yes before a `confirm` action |
-| `tool_event` | `{"type":"tool_event","name":"...","state":"running\|done\|error"}` | Optional UI hint |
-| `turn_end` | `{"type":"turn_end"}` | Turn finished; text clients re-enable input |
-
-> M0 adjustments (see [`phase-1-runtime.md`](phase-1-runtime.md) for the full
-> runtime protocol): `text` is a **first-class** turn trigger; `status` applies in
-> text mode (`thinking`/`idle` drive a spinner); `tool_event` gains an `error`
-> state; the server emits `turn_end` from `TurnComplete`.
+| `tool_event` | `{"type":"tool_event","name":"...","state":"running\|done"}` | Optional UI hint |
 
 ---
 
