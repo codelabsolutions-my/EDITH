@@ -1,0 +1,43 @@
+# EDITH local dev stack: Postgres + the FastAPI server.
+#
+#   docker compose up -d postgres     # just the DB (run the server from your venv)
+#   docker compose up --build         # full stack
+#
+# Host port 5434 is used for Postgres because 5432/5433 are already taken on this
+# machine; DATABASE_URL in server/.env points at it. Inside the compose network the
+# server reaches Postgres at postgres:5432 (see the server service override below).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: edith
+      POSTGRES_PASSWORD: edith
+      POSTGRES_DB: edith
+    ports:
+      - "5434:5432"
+    volumes:
+      - edith_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U edith -d edith"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    env_file:
+      - ./server/.env
+    environment:
+      # Override the host-facing DSN with the in-network one.
+      DATABASE_URL: postgresql://edith:edith@postgres:5432/edith
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  edith_pgdata:

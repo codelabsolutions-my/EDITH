@@ -7,7 +7,7 @@ import asyncio
 import app.agent.tools.foundational  # noqa: F401 — self-registers FoundationalConnector
 import app.connectors.examples as examples
 from app.agent.catalog import ToolCatalog
-from app.agent.memory import Memory
+from app.agent.memory import InMemoryMemory, Memory
 from app.connectors import registry
 
 registry.discover(examples)
@@ -48,7 +48,7 @@ def test_lookup_unknown_returns_none() -> None:
 
 
 def test_foundational_remember_recall_roundtrip() -> None:
-    mem = Memory()
+    mem = InMemoryMemory()
     catalog = _catalog(memory=mem, user_id="u_round")
 
     remember = catalog.lookup("remember")
@@ -61,7 +61,7 @@ def test_foundational_remember_recall_roundtrip() -> None:
 
 
 def test_per_user_memory_isolation() -> None:
-    mem = Memory()
+    mem = InMemoryMemory()
     asyncio.run(mem.remember("user_a", "secret A"))
     # A different user recalls nothing of user_a's.
     assert asyncio.run(mem.recall("user_b", "secret")) == []

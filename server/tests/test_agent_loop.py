@@ -13,7 +13,7 @@ from app.agent.catalog import ToolCatalog
 from app.agent.confirm import ConfirmGate
 from app.agent.llm import StubLLM
 from app.agent.loop import AgentLoop
-from app.agent.memory import Memory
+from app.agent.memory import InMemoryMemory, Memory
 from app.connectors import registry
 from app.events import (
     ConfirmRequest,
@@ -34,7 +34,7 @@ def _build_loop(
     user_id: str = "u_test",
     memory: Memory | None = None,
 ) -> AgentLoop:
-    mem = memory or Memory()
+    mem = memory or InMemoryMemory()
     catalog = ToolCatalog(
         registry,
         user_id=user_id,
@@ -104,7 +104,7 @@ def test_confirm_tool_skipped_on_ok_false() -> None:
 
 def test_remember_then_recall_roundtrip_via_loop() -> None:
     """remember stores a fact the loop can later recall into the prompt."""
-    mem = Memory()
+    mem = InMemoryMemory()
     transport = RecordingTransport(["remember I park on level 3"])
     loop = _build_loop(transport, memory=mem)
 

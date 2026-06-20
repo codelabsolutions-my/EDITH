@@ -9,9 +9,12 @@ dependencies = [
     "uvicorn[standard]>=0.32",
     "asyncpg>=0.30",
     "httpx>=0.28",
-    "pyjwt>=2.10",
+    "pyjwt[crypto]>=2.10",
     "cryptography>=44",
     "yoyo-migrations>=9",
+    "psycopg2-binary>=2.9",  # yoyo's sync driver for applying migrations
+    "pydantic-settings>=2.6",
+    "structlog>=24.4",
 ]
 
 [project.optional-dependencies]
@@ -48,6 +51,11 @@ warn_unused_ignores = true
 warn_redundant_casts = true
 warn_return_any = true
 no_implicit_optional = true
+
+# Third-party packages without type stubs / py.typed markers.
+[[tool.mypy.overrides]]
+module = ["asyncpg", "asyncpg.*", "yoyo", "yoyo.*", "psycopg2", "psycopg2.*"]
+ignore_missing_imports = true
 
 # ─── Pytest ───────────────────────────────────────────────────────────────
 [tool.pytest.ini_options]

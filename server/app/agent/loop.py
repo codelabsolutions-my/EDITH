@@ -8,9 +8,10 @@ knows nothing concrete about, so the same loop serves text (M0) and voice (M2).
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
 
 from ..connectors.base import ToolClass
 from ..events import (
@@ -43,12 +44,26 @@ _MAX_TOOL_ROUNDS = 8
 
 @dataclass
 class ActionLogEntry:
-    """One executed action — the in-memory M0 stand-in for the action_log table."""
+    """One executed action. Kept in-memory for the turn and (when wired) persisted."""
 
     user_id: str
     tool: str
     args_summary: str
     result_summary: str
+
+
+@runtime_checkable
+class TurnRecorder(Protocol):
+    """Optional persistence seam: where messages and actions are durably written.
+
+    The loop stays oblivious to storage — a ``None`` recorder (tests, DB-less runs)
+    means nothing is persisted; a Postgres-backed recorder writes ``messages`` and
+    ``action_log`` rows. All methods are awaited off the agent's critical decisions.
+    """
+
+    async def record_message(self, role: str, content: str) -> None: ...
+
+    async def record_action(self, entry: ActionLogEntry) -> None: ...
 
 
 class AgentLoop:
@@ -63,6 +78,7 @@ class AgentLoop:
         catalog: ToolCatalog,
         memory: Memory,
         confirm_gate: ConfirmGate,
+        recorder: TurnRecorder | None = None,
     ) -> None:
         self._user_id = user_id
         self._transport = transport
@@ -70,7 +86,8 @@ class AgentLoop:
         self._catalog = catalog
         self._memory = memory
         self._confirm = confirm_gate
-        # In-memory M0 audit trail. TODO(M1): persist to the action_log table.
+        self._recorder = recorder
+        # Per-process audit trail for the turn; durable copy goes through the recorder.
         self.action_log: list[ActionLogEntry] = []
         # Detached post-turn tasks (memory extraction); kept to avoid GC.
         self._background: set[asyncio.Task[None]] = set()
@@ -112,6 +129,7 @@ class AgentLoop:
             raise TurnCancelled
         await self._transport.set_status(Status.THINKING)
         await self._transport.emit(Transcript(role="user", text=user_text, final=True))
+        await self._record_message("user", user_text)
 
         memories = await self._memory.recall(self._user_id, user_text)
         messages: list[Message] = [
@@ -123,11 +141,13 @@ class AgentLoop:
         reply_parts: list[str] = []
         for _ in range(_MAX_TOOL_ROUNDS):
             calls: list[ToolCall] = []
+            round_text: list[str] = []
             async for delta in self._llm.stream(messages, specs, cancel=cancel):
                 if self._cancelled(cancel):
                     raise TurnCancelled
                 if isinstance(delta, TextDelta):
                     reply_parts.append(delta.text)
+                    round_text.append(delta.text)
                     await self._transport.emit(LLMToken(text=delta.text))
                 elif isinstance(delta, ToolCallDelta):
                     calls.append(delta.call)
@@ -137,6 +157,26 @@ class AgentLoop:
             if not calls:
                 break
 
+            # Append the assistant's tool-call message before the tool results so the
+            # transcript fed back to the model is OpenAI-compatible (a tool result must
+            # follow the assistant turn that requested it).
+            messages.append(
+                {
+                    "role": "assistant",
+                    "content": "".join(round_text) or None,
+                    "tool_calls": [
+                        {
+                            "id": call.id,
+                            "type": "function",
+                            "function": {
+                                "name": call.name,
+                                "arguments": json.dumps(call.arguments),
+                            },
+                        }
+                        for call in calls
+                    ],
+                }
+            )
             for call in calls:
                 result = await self._dispatch(call, cancel)
                 messages.append(
@@ -144,16 +184,19 @@ class AgentLoop:
                         "role": "tool",
                         "name": call.name,
                         "tool_call_id": call.id,
-                        "content": result,
+                        "content": json.dumps(result),
                     }
                 )
         else:
             log.warning("max tool rounds reached", extra={"user_id": self._user_id})
 
+        reply = "".join(reply_parts)
+        if reply.strip():
+            await self._record_message("edith", reply)
         await self._transport.flush_output()
         await self._transport.emit(TurnComplete())
         await self._transport.set_status(Status.IDLE)
-        self._schedule_extract(user_text, "".join(reply_parts))
+        self._schedule_extract(user_text, reply)
 
     async def _dispatch(self, call: ToolCall, cancel: asyncio.Event) -> dict[str, Any]:
         tool = self._catalog.lookup(call.name)
@@ -177,14 +220,14 @@ class AgentLoop:
             await self._transport.emit(ToolEvent(name=call.name, state="error"))
             return {"error": str(exc)}
 
-        self.action_log.append(
-            ActionLogEntry(
-                user_id=self._user_id,
-                tool=call.name,
-                args_summary=_summarise(call.arguments),
-                result_summary=_summarise(result),
-            )
+        entry = ActionLogEntry(
+            user_id=self._user_id,
+            tool=call.name,
+            args_summary=_summarise(call.arguments),
+            result_summary=_summarise(result),
         )
+        self.action_log.append(entry)
+        await self._record_action(entry)
         await self._transport.emit(ToolEvent(name=call.name, state="done"))
         return result if isinstance(result, dict) else {"result": result}
 
@@ -193,6 +236,23 @@ class AgentLoop:
         if call.arguments:
             return f"Run {call.name} with {_summarise(call.arguments)} — ok?"
         return f"Run {call.name} — ok?"
+
+    async def _record_message(self, role: str, content: str) -> None:
+        if self._recorder is None:
+            return
+        try:
+            await self._recorder.record_message(role, content)
+        except Exception:
+            # Persistence must never break a live turn; log and carry on.
+            log.exception("record_message failed", extra={"user_id": self._user_id})
+
+    async def _record_action(self, entry: ActionLogEntry) -> None:
+        if self._recorder is None:
+            return
+        try:
+            await self._recorder.record_action(entry)
+        except Exception:
+            log.exception("record_action failed", extra={"user_id": self._user_id})
 
     def _schedule_extract(self, user_text: str, reply_text: str) -> None:
         task = asyncio.create_task(

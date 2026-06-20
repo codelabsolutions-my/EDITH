@@ -28,10 +28,10 @@ from ...connectors.base import (
     ToolClass,
 )
 from ...connectors.registry import register
-from ..memory import Memory
+from ..memory import InMemoryMemory, Memory
 
-# Fallback store used only when a context carries no injected Memory (M0 / tests).
-_DEFAULT_MEMORY = Memory()
+# Fallback store used only when a context carries no injected Memory (tests / DB-less runs).
+_DEFAULT_MEMORY = InMemoryMemory()
 
 
 @register

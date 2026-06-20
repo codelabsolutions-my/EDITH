@@ -75,6 +75,7 @@ def _make_endpoint(reg: ConnectorRegistry) -> Any:
             registry=reg,
             ws_send=websocket.send_json,
             ws_receive=ws_receive,
+            db_pool=getattr(websocket.app.state, "db_pool", None),
         )
         try:
             await session.run()

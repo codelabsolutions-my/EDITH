@@ -8,8 +8,23 @@ from __future__ import annotations
 
 from typing import Any
 
+from app.auth.tokens import mint_access_token
+from app.config import get_settings
 from app.main import create_app
 from fastapi.testclient import TestClient
+
+# A stable test user id (a UUID string, as real auth would issue).
+TEST_USER_ID = "11111111-1111-1111-1111-111111111111"
+
+
+def _token(user_id: str = TEST_USER_ID, display_name: str = "Test User") -> str:
+    settings = get_settings()
+    return mint_access_token(
+        user_id=user_id,
+        display_name=display_name,
+        secret=settings.JWT_SECRET,
+        ttl_seconds=settings.JWT_ACCESS_TTL_SECONDS,
+    )
 
 
 def _collect_until_turn_end(ws: Any) -> list[dict[str, Any]]:
@@ -36,10 +51,10 @@ def test_full_text_mode_flow() -> None:
 
     with client.websocket_connect("/ws") as ws:
         # ── auth ──
-        ws.send_json({"type": "auth", "token": "test-token"})
+        ws.send_json({"type": "auth", "token": _token()})
         auth_ok = ws.receive_json()
         assert auth_ok["type"] == "auth_ok"
-        assert auth_ok["user"]["id"].startswith("u_")
+        assert auth_ok["user"]["id"] == TEST_USER_ID
 
         # ── remember (AUTO) ──
         ws.send_json({"type": "text", "content": "remember I park on level 3"})
@@ -97,7 +112,7 @@ def test_barge_in_cancels_turn_and_session_survives() -> None:
     client = TestClient(app)
 
     with client.websocket_connect("/ws") as ws:
-        ws.send_json({"type": "auth", "token": "test-token"})
+        ws.send_json({"type": "auth", "token": _token()})
         assert ws.receive_json()["type"] == "auth_ok"
 
         # Start a turn, then immediately interrupt it.
