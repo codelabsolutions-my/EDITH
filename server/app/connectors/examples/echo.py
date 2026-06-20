@@ -39,9 +39,7 @@ class EchoConnector(Connector):
                 description="Echo the given text back to the user.",
                 parameters={
                     "type": "object",
-                    "properties": {
-                        "text": {"type": "string", "description": "Text to echo."}
-                    },
+                    "properties": {"text": {"type": "string", "description": "Text to echo."}},
                     "required": ["text"],
                 },
                 tool_class=ToolClass.AUTO,  # reversible / harmless -> auto
