@@ -15,7 +15,7 @@ contributors understand the *why*, not just the *what*.
 | # | Title | Status |
 |---|-------|--------|
 | [0001](0001-open-core-apache-2.0.md) | Open-core model under Apache-2.0 | Accepted |
+| [0002](0002-voice-and-agent-llm-from-ilmu-spike.md) | Voice (turn-based) & agent LLM (`nemo-super`) from the ILMU spike | Accepted |
 
-> Decisions still to backfill as ADRs: ILMU streaming voice pipeline (vs. realtime
-> speech-to-speech); Flutter clients (vs. PWA / native); self-hosted SSO + Azure
-> Postgres (vs. Supabase); agent-core-from-day-one.
+> Decisions still to backfill as ADRs: Flutter clients (vs. PWA / native);
+> self-hosted SSO + Azure Postgres (vs. Supabase); agent-core-from-day-one.

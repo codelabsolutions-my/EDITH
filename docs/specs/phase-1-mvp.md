@@ -5,15 +5,16 @@
 ## Scope (MVP)
 
 1. SSO sign-in (Google / Microsoft / Apple) on web or mobile
-2. **Real-time BM/Manglish voice-to-voice** via the ILMU streaming pipeline (speech in, speech out, **barge-in**), mirrored as on-screen text
+2. **Fast BM/Manglish voice turns** via the ILMU turn-based pipeline (speech in, speech out, ~3s, **barge-in** on playback), mirrored as on-screen text
 3. **Agent core**: EDITH calls tools mid-conversation; risky tools wait for confirmation
 4. Conversational memory persists across sessions
 5. Orb renders smoothly from the live audio stream
 6. Per-user voice-minute metering; 10+ concurrent users, full isolation
 
-> **Two de-risk spikes gate the build** — do these first:
-> - **ILMU spike:** confirm managed API exists, supports **streaming** ASR/TTS, code-switching accuracy, latency, cost, licensing.
-> - **LLM bake-off:** ILMU vs frontier (Claude/GPT) on Manglish reasoning **+ tool-calling reliability**. Default is ILMU; switch only if tool-calling is unreliable.
+> **ILMU spike: DONE (2026-06-20) — see [ADR 0002](../decisions/0002-voice-and-agent-llm-from-ilmu-spike.md).** Outcomes baked into this plan:
+> - ASR/TTS are **file/batch (no streaming)** → voice is **turn-based + pseudo-streaming** (per-sentence TTS). Manglish ASR validated excellent. ~2s ASR, ~1.7s TTS.
+> - Agent tools/reasoning = **`nemo-super`** (validated reliable; `ilmu-v3.1` is NOT — fails tool-calling/date math). Single-vendor (YTL/ILMU API), OpenAI-compatible.
+> - `bge-m3` embeddings + `bge-reranker` available for semantic memory.
 
 ---
 
@@ -49,9 +50,9 @@ Voice path: `mic →(stream)→ VAD → ILMU ASR →(text)→ [LLM + agent] →(
 | 3 | **Auth — OIDC RP + sessions** | `server/app/auth/` | Verify provider `id_token`; mint our JWT (access+refresh); refresh rotation; account-collision → confirm-link. Identity scopes only in P1 |
 | 4 | **WebSocket hub** | `server/app/ws.py`, `main.py` | `/ws`; authenticate our JWT on connect; per-user session; no globals |
 | 5 | **VAD + endpointing** | `server/app/voice/vad.py` | Server-side VAD (Silero); detect speech start/end; drives turn-taking + barge-in |
-| 6 | **ILMU ASR (streaming)** | `server/app/voice/asr.py` | Stream audio → partial + final transcripts |
-| 7 | **LLM layer + agent core** | `server/app/agent/` | LLM abstraction (ILMU default, frontier fallback); tool registry (`auto`/`confirm`), execution, confirmation gating |
-| 8 | **ILMU TTS (streaming)** | `server/app/voice/tts.py` | Sentence-chunk LLM output → stream audio back |
+| 6 | **ILMU ASR (batch)** | `server/app/voice/asr.py` | On VAD endpoint, POST utterance file → final transcript (`StreamingASR` impl, no partials) |
+| 7 | **LLM layer + agent core** | `server/app/agent/` | LLM abstraction (`nemo-super` for tools; `ilmu-v3.1` for Manglish gen); tool registry (`auto`/`confirm`), execution, confirmation gating |
+| 8 | **ILMU TTS (per-sentence)** | `server/app/voice/tts.py` | Sentence-chunk LLM output → POST each sentence → play back-to-back (`StreamingTTS` impl) |
 | 9 | **Pipeline orchestration** | `server/app/voice/pipeline.py` | Wire asr→llm→tts; handle barge-in cancel; meter voice-seconds |
 | 10 | **Foundational tools** | `server/app/agent/tools/` | `remember`, `recall`, `current_time`, `web_lookup` |
 | 11 | **Memory + prompts** | `server/app/memory.py`, `prompts.py` | tsvector recall, auto-extract, 30-min resume; **Manglish** personality; memory injected per session |
@@ -106,7 +107,7 @@ Continuous bidirectional stream over `/ws` (not turn-based request/response).
 
 ## Agent core (Phase 1)
 
-- **LLM layer:** single interface; ILMU LLM by default, frontier (Claude/GPT) fallback. Switch trigger = tool-calling reliability (validated in the bake-off).
+- **LLM layer:** single interface; **`nemo-super`** for agentic/tool turns (spike-validated), `ilmu-v3.1` for Manglish generation. Frontier (Claude/GPT) is an optional escape hatch only. All via the OpenAI-compatible ILMU API.
 - **Tool registry:** each tool declares name, JSON schema, and class — `auto` (run immediately) or `confirm` (require `confirm_request` → `confirm`).
 - **Execution:** model emits a function call → pipeline runs it server-side → result fed back → EDITH speaks the outcome.
 - **Confirmation:** `confirm` tools emit `confirm_request` and pause; `ok:false` skips and EDITH acknowledges.
@@ -143,8 +144,8 @@ OAuth API tokens (`*_enc`) encrypted at rest. P1 stores identity-scope accounts 
 ## Tech stack
 
 - **Backend:** Python 3.12, FastAPI, asyncpg, httpx, yoyo-migrations; server-side VAD (Silero)
-- **Voice:** ILMU ASR + TTS (managed API, streaming), server-mediated pipeline
-- **Agent LLM:** ILMU (default) ↔ frontier (Claude/GPT) fallback, behind a provider abstraction
+- **Voice:** ILMU ASR + TTS (file/batch, OpenAI-compatible API), server-mediated turn-based pipeline (per-sentence TTS)
+- **Agent LLM:** `nemo-super` (tools/reasoning) + `ilmu-v3.1` (Manglish gen) — single-vendor (YTL); frontier optional escape hatch
 - **Frontend:** Flutter (Dart), Riverpod, GLSL shader, streaming audio, `flutter_secure_storage`
 - **Auth:** self-hosted OIDC relying party (Google/Microsoft/Apple) + own JWT sessions
 - **DB:** Azure Database for PostgreSQL · **Hosting:** Azure Container Apps (MY region)

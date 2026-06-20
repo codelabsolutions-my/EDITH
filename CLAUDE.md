@@ -19,33 +19,33 @@ EDITH (Everyday Digital Intelligent Task Helper) is a **Malaysia-first, voice-fi
 
 ```
 Flutter (Web/Android/iOS) ⇄ FastAPI on Azure Container Apps (MY region) ⇄ ILMU ASR/TTS API
-   (bidirectional audio)         │ server-mediated streaming pipeline
-                                 ├─ VAD/endpointing + barge-in
+   (bidirectional audio)         │ server-mediated TURN-BASED pipeline (ILMU is file/batch, not streaming)
+                                 ├─ VAD endpoint → batch ASR; per-sentence TTS; barge-in on playback
                                  ├─ Agent core: tool registry + exec + confirmation
-                                 ├─ LLM layer: ILMU (default) ↔ frontier (fallback)
-                                 ├─ per-user memory injection
+                                 ├─ LLM layer: nemo-super (tools/reasoning) · ilmu-v3.1 (Manglish gen)
+                                 ├─ per-user memory injection (tsvector + bge-m3 embeddings)
                                  ├─ OIDC auth (Google/Microsoft/Apple) + own JWTs
                                  └─ Azure Postgres (asyncpg)
 ```
 
-Voice path: `mic →(stream)→ VAD → ILMU ASR → [LLM + agent] → ILMU TTS →(stream)→ speaker`; user speech during playback triggers **barge-in** (cancel TTS+LLM, new turn).
+Voice path: `mic → VAD endpoint → ILMU ASR (file) → [nemo-super + agent] → ILMU TTS (per sentence) → speaker`; user speech during playback triggers **barge-in** (cancel TTS+LLM, new turn). ~3s to first audio. See [ADR 0002](docs/decisions/0002-voice-and-agent-llm-from-ilmu-spike.md).
 
-- `server/` — Python 3.12 FastAPI. One `/ws` WebSocket per user carries a **continuous bidirectional audio stream** (not turn-based). Subsystems: `voice/` (ILMU ASR/TTS, VAD, pipeline orchestration, optional Realtime A/B harness), `agent/` (LLM abstraction + tool registry + execution + confirmation), `auth/` (OIDC RP + JWT sessions), `integrations/` (OAuth, P2+), `proactivity/` (scheduler + push, P3), `memory.py`, `db.py`.
+- `server/` — Python 3.12 FastAPI. One `/ws` WebSocket per user carries a continuous bidirectional audio channel, but **turns are batch** (VAD endpoints an utterance → file ASR; TTS synthesized per sentence). Subsystems: `voice/` (ILMU ASR/TTS, VAD, pipeline orchestration), `agent/` (LLM abstraction + tool registry + execution + confirmation), `auth/` (OIDC RP + JWT sessions), `integrations/` (OAuth, P2+), `proactivity/` (scheduler + push, P3), `memory.py`, `db.py`.
 - `app/` — Flutter (Dart), Riverpod. `voice/`+`audio/` do bidirectional streaming with barge-in; `orb/` is a GLSL fragment-shader visual driven by the live stream; `linking/` is the integration hub; `android/` holds native code (WhatsApp NotificationListener + reply, widget).
 
 ### Decisions that shape the whole codebase
 
-- **Voice is a streaming *pipeline*, not a black-box model.** Primary path: **ILMU ASR + TTS** (chosen for Bahasa Malaysia + Manglish code-switching) with a swappable reasoning LLM in between. Do NOT build a single speech-to-speech model as the primary path — OpenAI Realtime exists only as an optional A/B comparison harness. The "alive" feel (low latency, **barge-in**) is engineered: streaming ASR, server-side VAD, sentence-chunked streaming TTS, cancellation.
-- **LLM default is ILMU; fallback is a frontier model; the switch trigger is *tool-calling reliability*** — not general quality. ILMU is Manglish-native; if it can't emit correct, consistent function calls, route agentic turns to Claude/GPT. Keep the LLM behind a provider abstraction.
+- **Voice is a TURN-BASED pipeline (ILMU is file/batch — confirmed no streaming; [ADR 0002](docs/decisions/0002-voice-and-agent-llm-from-ilmu-spike.md)).** **ILMU ASR + TTS** chosen for Manglish quality (validated excellent). Responsiveness is engineered via *pseudo-streaming*: VAD-tight utterances → batch ASR; token-stream the LLM; synthesize **TTS per sentence** played back-to-back; **barge-in on playback**. ~3s to first audio. The `StreamingASR`/`StreamingTTS` interfaces absorb the batch reality — the agent loop/Transport don't change. No OpenAI Realtime harness.
+- **Agent LLM is single-vendor (YTL/ILMU API): `nemo-super` for tools/reasoning** (validated reliable at tool-calling + relative-date math), `ilmu-v3.1` available for Manglish-heavy generation. **Do NOT use `ilmu-v3.1` for tool-calling** (proven unreliable). Frontier (Claude/GPT) is only an optional escape hatch behind the LLM abstraction, not a default dependency.
 - **Server-mediated, always.** Client audio flows *through* our server. Tools, memory, confirmation, keys, metering live server-side. Never connect the client directly to a model provider.
 - **Agent core from day one.** Every capability is a **tool registered with the agent**, classed `auto` (run immediately) or `confirm` (round-trip a `confirm_request`/`confirm` first). Later integrations are just more tools — don't special-case them.
 - **Trust model is cross-cutting.** Auto-execute reversible/local/read actions; **verbally confirm** external/irreversible ones (send email, send WhatsApp reply, delete, modify others' meetings, unlock). Enforced by the tool's class; every action logged to `action_log`.
 - **Multi-tenant from day one.** No global state — everything keyed by `user_id`/connection. Porting JARVIS code means removing single-user globals and threading `user_id` everywhere.
 - **Self-hosted SSO auth (no Supabase, no passwords).** OIDC relying party to Google/Microsoft/Apple; own JWT sessions (access + refresh, hashed + revocable). **Incremental scopes**: identity at login; API scopes just-in-time at feature activation, reusing the provider credential. **Apple is identity-only**.
-- **Direct Postgres on Azure** via **asyncpg** (no ORM); schema as **plain-SQL yoyo migrations**; `tsvector` memory search. Host in the **Malaysia/Southeast-Asia region** (latency to users + ILMU API).
+- **Direct Postgres on Azure** via **asyncpg** (no ORM); schema as **plain-SQL yoyo migrations**; memory search via `tsvector` (lexical) and/or ILMU `bge-m3` embeddings + `bge-reranker` (semantic). Host in the **Malaysia/Southeast-Asia region** (latency to users + ILMU API).
 - **WhatsApp has two separate tracks — never scrape WhatsApp Web.** (1) *Personal assist* = **Android on-device** via NotificationListenerService (read) + notification direct-reply/RemoteInput (send); official OS APIs, no server session, zero per-message cost, **iOS cannot do this**. (2) *EDITH's own number* = compliant **WhatsApp Business Cloud API**, a separate optional reach/SMB channel. Server-side WhatsApp Web scraping is explicitly rejected (ban/ToS/security risk).
 - **Cost is first-class.** Free tier is **time-based** (voice-minutes); per-user metering ships in Phase 1 (`usage_log.voice_seconds`).
-- **Two Phase-1 spikes gate everything:** ILMU capability (streaming/latency/code-switching/cost) and an LLM tool-calling bake-off. Validate before building around them.
+- **ILMU spike: DONE (2026-06-20, [ADR 0002](docs/decisions/0002-voice-and-agent-llm-from-ilmu-spike.md)).** Findings: no streaming (→ turn-based); Manglish ASR excellent; `ilmu-v3.1` unreliable at tools; **`nemo-super` validated** for tool-calling; `bge-m3`/`bge-reranker` available. All endpoints OpenAI-compatible (`https://api.ilmu.ai/v1`).
 
 ### Roadmap shape
 

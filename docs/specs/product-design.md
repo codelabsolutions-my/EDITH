@@ -27,7 +27,7 @@ Most people don't use AI because it's intimidating — type prompts, learn inter
 6. **It's proactive** — "Ian messaged you an hour ago and you haven't replied" arrives as a tap-to-engage notification.
 7. **Invoke instantly (mobile)** — a home-screen **widget / quick-action** lets you talk without opening the app.
 
-**Response model:** real-time **voice-to-voice** (speech in, speech out, barge-in), always mirrored as on-screen text. Mute audio and read, or run hands-free.
+**Response model:** **fast, natural voice turns** (speech in, speech out, ~3s response, barge-in on playback), always mirrored as on-screen text. Mute audio and read, or run hands-free. (Turn-based, not fluid streaming — see [ADR 0002](../decisions/0002-voice-and-agent-llm-from-ilmu-spike.md).)
 
 ---
 
@@ -45,19 +45,18 @@ Most people don't use AI because it's intimidating — type prompts, learn inter
 
 ## Voice & agent architecture
 
-EDITH uses a **streaming componentized pipeline** (not a single black-box speech model) so we get local-language quality, cost control, and full agent control:
+EDITH uses a **turn-based componentized pipeline** (validated by the ILMU spike — see [ADR 0002](../decisions/0002-voice-and-agent-llm-from-ilmu-spike.md)). ILMU's ASR/TTS are **file/batch (no streaming)**, so responsiveness is engineered via *pseudo-streaming*:
 
 ```
-mic ─(stream)→ VAD/endpoint ─→ ILMU ASR ─(partial+final text)→ [ LLM + agent core ] ─(sentences)→ ILMU TTS ─(stream)→ speaker
-        ▲ barge-in: user speech during playback cancels TTS + LLM, starts a new turn         tools · confirm · memory
+mic ─→ VAD endpoint ─→ ILMU ASR (file, ~2s) ─(text)→ [ nemo-super + agent core ] ─(per sentence)→ ILMU TTS ─→ speaker
+        ▲ barge-in: user speech during playback cancels TTS + LLM, starts a new turn       tools · confirm · memory
 ```
 
-- **ASR + TTS = ILMU** — chosen because it's **trained for Bahasa Malaysia + Manglish code-switching**, which foreign models handle poorly. Accessed via ILMU's **managed API** (pending the Phase-1 spike to confirm streaming support, latency, code-switching accuracy, and cost).
-- **Reasoning LLM = ILMU by default, swappable.** ILMU's LLM is the default (Manglish-native). The provider abstraction lets us **fall back to a frontier model (Claude/GPT)** — and the **fallback trigger is *tool-calling reliability***, not general quality: speaking great Manglish and emitting correct, consistent function calls are different competencies. If ILMU nails language but fumbles tool-calls, we route agentic turns to the frontier model.
+- **ASR + TTS = ILMU** — chosen because it's **trained for Bahasa Malaysia + Manglish code-switching** (spike-validated excellent). File-based: ASR on VAD endpoint, TTS synthesized **per sentence** and played back-to-back. ~3s to first audio; **barge-in on playback** preserved.
+- **Agent reasoning/tools = `nemo-super`** (YTL's Nemotron-based model) — spike-validated reliable at tool-calling + relative-date math, ~0.8s/call. `ilmu-v3.1` is available for Manglish-heavy *generation* but **not** tool-calling (spike-proven unreliable). **Single-vendor (YTL/ILMU API)**; a frontier model (Claude/GPT) is only an optional escape hatch behind the LLM abstraction.
 - **Server-mediated, always** — client audio flows through our server. Tools, memory injection, confirmation, keys, and metering live server-side.
 - **Agent core from day one** — a tool registry + server-side execution + confirmation gating ships in Phase 1 (foundational tools: memory, time, web). Owning the LLM turn makes function-calling, confirmation, and memory first-class.
-- **Conversational quality is engineered, not free** — streaming ASR, server-side **VAD** (e.g. Silero) + endpointing, sentence-chunked streaming TTS, and **barge-in cancellation** are a Phase-1 workstream.
-- **Comparison harness** — OpenAI Realtime stays optionally wired so we can A/B the *feel* and keep a fallback if ILMU's streaming/latency disappoints.
+- **Conversational quality is engineered, not free** — server-side **VAD** (Silero) + endpointing, token-streaming the LLM into **per-sentence TTS calls**, and **barge-in cancellation** are a Phase-1 workstream. The `StreamingASR`/`StreamingTTS` interfaces absorb ILMU's batch reality without changing the agent loop.
 
 ---
 
@@ -115,7 +114,7 @@ WhatsApp is dominant in Malaysia, so it gets real attention — but split by wha
 ## Roadmap
 
 ### Phase 1 — Foundation + Agent Core
-**Goal:** sign in, talk to EDITH in real-time voice-to-voice (BM/Manglish), and have it act via a tool-calling agent with memory.
+**Goal:** sign in, talk to EDITH in fast voice turns (BM/Manglish), and have it act via a tool-calling agent with memory.
 - SSO sign-in (Google/Microsoft/Apple)
 - ILMU streaming pipeline (ASR → LLM → TTS), server-mediated, **VAD + barge-in**, voice + on-screen text
 - **Agent core:** tool registry, execution, confirmation gating; foundational tools (memory, time, web)
@@ -219,8 +218,8 @@ edith/
 
 - **Client:** Flutter (Dart), Riverpod, GLSL shader orb, streaming audio, `flutter_secure_storage`; Android native (NotificationListenerService + RemoteInput) for WhatsApp assist
 - **Backend:** Python 3.12, FastAPI, asyncpg, httpx, yoyo-migrations
-- **Voice:** **ILMU ASR + TTS** (managed API) · server-side VAD (Silero) · streaming pipeline · OpenAI Realtime (optional A/B harness)
-- **Agent LLM:** ILMU LLM (default) ↔ frontier (Claude/GPT) fallback, behind a provider abstraction; trigger = tool-calling reliability
+- **Voice:** **ILMU ASR + TTS** (file/batch, OpenAI-compatible API) · server-side VAD (Silero) · turn-based pseudo-streaming (per-sentence TTS)
+- **Agent LLM:** **`nemo-super`** for tools/reasoning · `ilmu-v3.1` for Manglish generation — single-vendor (YTL); frontier (Claude/GPT) optional escape hatch behind the abstraction
 - **Auth:** self-hosted OIDC relying party (Google/Microsoft/Apple) + own JWT sessions
 - **DB:** Azure Database for PostgreSQL (`tsvector` memory FTS)
 - **Hosting:** Azure Container Apps, **Southeast Asia / Malaysia region**; static host (web); TestFlight/Play (mobile)
