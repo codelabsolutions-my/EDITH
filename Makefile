@@ -47,6 +47,9 @@ test: test-server test-app ## Run all tests
 test-server: ## Run server tests
 	cd server && pytest
 
+cov: ## Run server tests with a coverage report
+	cd server && pytest --cov=app --cov-report=term-missing
+
 test-connectors: ## Run the connector conformance suite
 	cd server && pytest tests/test_connectors.py -v
 

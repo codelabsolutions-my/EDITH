@@ -19,6 +19,7 @@ dev = [
     "ruff>=0.8",
     "mypy>=1.13",
     "pytest>=8.3",
+    "pytest-cov>=6",
 ]
 
 [build-system]
@@ -52,3 +53,15 @@ no_implicit_optional = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-ra"
+# Coverage is reported in CI (no hard gate — see docs/engineering.md). Run with:
+#   pytest --cov=app --cov-report=term-missing
+
+# ─── Coverage ─────────────────────────────────────────────────────────────
+[tool.coverage.run]
+source = ["app"]
+branch = true
+omit = ["app/connectors/examples/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false

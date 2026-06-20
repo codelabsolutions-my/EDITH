@@ -100,6 +100,43 @@ Plus: Conventional Commits, DCO sign-off (`git commit -s`), secret scanning
 
 ---
 
+## Testing & coverage
+
+Policy: **ratchet, not hard-gate** — fast early, strict where it matters.
+
+- **No CI coverage threshold** (yet). Coverage is *reported* on every PR
+  (`pytest --cov`, `flutter test --coverage`), not failed. We raise an explicit
+  floor as the codebase stabilizes.
+- **Critical paths require tests** — reviewers enforce this. A change to any of
+  these must ship with tests:
+  - Auth: OIDC verification, JWT issue/refresh/rotation, account-linking
+  - Agent: the **confirmation gate** (`auto` vs `confirm`), tool execution
+  - Connectors: must pass the conformance suite; handlers covered by behavioural tests
+  - Anything touching tokens, money, or per-user data isolation
+- **Test shape:** prefer fast unit tests; add integration tests for the WebSocket
+  voice path and OAuth flows. Don't write filler tests to chase a number.
+
+Dependencies (Dependabot, weekly): review update PRs; a **new runtime dependency
+needs justification** in the PR — especially in connectors (supply-chain surface).
+
+## Logging & observability
+
+This is an auth- and token-handling system; logging discipline is a safety
+requirement, not a nicety.
+
+- **Never log secrets or PII** — no tokens, passwords, raw audio, message/email
+  contents, or full personal data. Log identifiers (`user_id`, `conversation_id`),
+  not contents.
+- **Structured logging** — key/value (JSON in prod), one event per line, with a
+  correlation id per request/WS-session so a conversation can be traced.
+- **Errors:** fail loud server-side (structured error + context), fail graceful
+  user-side (a spoken/displayed apology, never a stack trace). Don't swallow
+  exceptions silently.
+- **Action audit:** every agent action is recorded in `action_log` (tool,
+  args summary, result) — distinct from debug logs, and retained for trust/undo.
+
+---
+
 ## Decisions
 
 Significant, hard-to-reverse decisions (e.g. ILMU for voice, Apache-2.0,
