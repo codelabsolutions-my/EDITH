@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:js_interop';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:web/web.dart' as web;
 
 import '../audio_io.dart';
@@ -87,6 +87,15 @@ class WebAudioPlayback implements AudioPlayback {
     final floats = Pcm.int16ToFloats(pcm);
     if (floats.isEmpty) {
       return;
+    }
+    // Diagnostic (shows in Chrome DevTools console): "running" = playback is
+    // unlocked and any silence/garble is upstream; "suspended" = the gesture
+    // unlock didn't take. Logs once per reply (server sends one frame/sentence).
+    if (kDebugMode) {
+      debugPrint(
+        'edith playback: ${floats.length} samples, ctxRate=${ctx.sampleRate}, '
+        'ctxState=${ctx.state}',
+      );
     }
 
     final buffer = ctx.createBuffer(
