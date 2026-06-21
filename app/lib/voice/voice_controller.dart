@@ -78,16 +78,26 @@ class VoiceController extends Notifier<VoiceState> {
 
   /// Turn voice mode on: acquire the mic and start streaming. Caller must have
   /// already connected the transport in `voice` mode.
+  ///
+  /// MUST be invoked from a user-gesture handler on web — `getUserMedia` and
+  /// `AudioContext.resume()` only succeed inside a gesture. The first "Tap to
+  /// talk" is that gesture.
   Future<void> enable() async {
-    if (state.isVoiceOn) {
+    if (state.micState == MicState.capturing ||
+        state.micState == MicState.starting) {
       return;
     }
-    state = state.copyWith(micState: MicState.permissionNeeded, clearError: true);
+    state = state.copyWith(micState: MicState.starting, clearError: true);
+    // Unlock playback while we're still inside the user gesture, so EDITH's
+    // spoken reply actually plays (a context resumed only on the first inbound
+    // frame stays suspended → silent).
+    await _playback.prime();
     try {
       await _capture.start();
     } on AudioException catch (e) {
+      // Most commonly a denied browser permission.
       state = state.copyWith(
-        micState: MicState.permissionNeeded,
+        micState: MicState.denied,
         errorMessage: e.message,
       );
       return;

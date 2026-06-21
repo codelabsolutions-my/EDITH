@@ -47,6 +47,9 @@ class NativeAudioPlayback implements AudioPlayback {
   }
 
   @override
+  Future<void> prime() => _ensureStarted();
+
+  @override
   void enqueue(Uint8List pcm) {
     if (pcm.isEmpty) {
       return;

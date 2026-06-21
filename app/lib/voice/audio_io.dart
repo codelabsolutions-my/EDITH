@@ -38,6 +38,13 @@ abstract class AudioCapture {
 
 /// Plays a continuous stream of 24 kHz mono 16-bit PCM frames back-to-back.
 abstract class AudioPlayback {
+  /// Prepare playback **inside a user gesture** so audio can actually play.
+  ///
+  /// On web an AudioContext created outside a gesture starts suspended and stays
+  /// silent; calling this from the "tap to talk" handler creates and resumes it
+  /// (and unlocks autoplay) before any audio arrives. A no-op where unneeded.
+  Future<void> prime();
+
   /// Enqueue a frame for playback.
   void enqueue(Uint8List pcm);
 

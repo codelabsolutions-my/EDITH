@@ -5,8 +5,9 @@ import '../chat/chat_models.dart';
 import '../providers.dart';
 import '../voice/voice_state.dart';
 import '../ws/events.dart';
-import 'orb.dart';
+import 'orb/orb.dart';
 import 'whatsapp_assist_screen.dart';
+import 'widgets/message_bubble.dart';
 
 /// The text chat surface with EDITH.
 class ChatScreen extends ConsumerStatefulWidget {
@@ -202,7 +203,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                     padding: const EdgeInsets.all(12),
                     itemCount: state.messages.length,
                     itemBuilder: (context, index) =>
-                        _MessageBubble(message: state.messages[index]),
+                        MessageBubble(message: state.messages[index]),
                   ),
           ),
           _StatusBar(state: state),
@@ -237,38 +238,6 @@ class _Banner extends StatelessWidget {
   }
 }
 
-class _MessageBubble extends StatelessWidget {
-  const _MessageBubble({required this.message});
-
-  final ChatMessage message;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final isUser = message.role == MessageRole.user;
-    final color = isUser ? scheme.primaryContainer : scheme.surfaceContainerHighest;
-    final onColor = isUser ? scheme.onPrimaryContainer : scheme.onSurface;
-
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 4),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.78,
-        ),
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        child: Text(
-          message.text.isEmpty && message.isStreaming ? '…' : message.text,
-          style: TextStyle(color: onColor),
-        ),
-      ),
-    );
-  }
-}
 
 class _StatusBar extends StatelessWidget {
   const _StatusBar({required this.state});

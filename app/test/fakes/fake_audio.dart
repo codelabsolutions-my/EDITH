@@ -48,10 +48,14 @@ class FakeAudioCapture implements AudioCapture {
 class FakeAudioPlayback implements AudioPlayback {
   final List<Uint8List> enqueued = [];
   int stopCount = 0;
+  bool primed = false;
   bool disposed = false;
   final _level = StreamController<double>.broadcast();
 
   void emitLevel(double v) => _level.add(v);
+
+  @override
+  Future<void> prime() async => primed = true;
 
   @override
   void enqueue(Uint8List pcm) => enqueued.add(pcm);

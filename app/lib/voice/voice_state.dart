@@ -2,11 +2,14 @@ import '../ws/events.dart';
 
 /// Whether voice mode is engaged and what the mic is doing.
 enum MicState {
-  /// Voice mode off (text-only).
+  /// Voice mode off (text-only) — the landing state before the first tap.
   off,
 
-  /// Voice mode on, mic permission pending/denied.
-  permissionNeeded,
+  /// Acquiring the mic / awaiting the browser permission prompt.
+  starting,
+
+  /// Mic permission was denied; the UI should explain and offer text.
+  denied,
 
   /// Mic live and streaming.
   capturing,
@@ -34,7 +37,18 @@ class VoiceState {
 
   final String? errorMessage;
 
-  bool get isVoiceOn => micState != MicState.off;
+  /// Mic is engaged (or coming up). False for the off landing state and a hard
+  /// permission denial.
+  bool get isVoiceOn =>
+      micState == MicState.starting ||
+      micState == MicState.capturing ||
+      micState == MicState.paused;
+
+  /// Live and streaming mic audio.
+  bool get isCapturing => micState == MicState.capturing;
+
+  /// Permission was refused — the UI should explain and steer to text.
+  bool get isDenied => micState == MicState.denied;
 
   /// EDITH is actively producing audio.
   bool get isSpeaking => sessionState == SessionState.speaking;

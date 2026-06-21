@@ -5,6 +5,7 @@ import 'package:home_widget/home_widget.dart';
 
 import 'providers.dart';
 import 'ui/login_screen.dart';
+import 'ui/theme.dart';
 import 'widget/home_widget_service.dart';
 
 Future<void> main() async {
@@ -47,10 +48,8 @@ class EdithApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'EDITH',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: const Color(0xFF6C5CE7)),
-        useMaterial3: true,
-      ),
+      theme: EdithTheme.dark,
+      darkTheme: EdithTheme.dark,
       home: const LoginScreen(),
     );
   }

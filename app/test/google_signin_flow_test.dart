@@ -81,7 +81,12 @@ void main() {
       await tester.pumpAndSettle();
 
       await tester.tap(find.text('Sign in with Google'));
-      await tester.pumpAndSettle();
+      // Bounded pumps (not pumpAndSettle): the destination VoiceScreen runs a
+      // continuous orb animation that never settles. Several cycles let the
+      // async sign-in future resolve and the route transition complete.
+      for (var i = 0; i < 20; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
 
       expect(captured.url.toString(), 'http://server/auth/google');
       expect(jsonDecode(captured.body), {'id_token': 'id-tok'});

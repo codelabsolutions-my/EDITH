@@ -38,6 +38,9 @@ class StubAudioPlayback implements AudioPlayback {
   final _level = StreamController<double>.broadcast();
 
   @override
+  Future<void> prime() async {}
+
+  @override
   void enqueue(Uint8List pcm) {}
 
   @override

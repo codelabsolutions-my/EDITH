@@ -31,11 +31,28 @@ class WebAudioPlayback implements AudioPlayback {
     }
     final ctx = web.AudioContext();
     _ctx = ctx;
-    // May start suspended if first created outside a user gesture; resume so
-    // scheduled buffers actually play. (Fire-and-forget: resume is async but
-    // scheduling tolerates a brief suspension.)
     ctx.resume();
     return ctx;
+  }
+
+  @override
+  Future<void> prime() async {
+    // MUST be called from a user gesture (the "tap to talk" handler). A context
+    // created lazily on the first inbound frame is outside a gesture and stays
+    // suspended → silent. Creating + resuming it here, and playing one silent
+    // buffer, unlocks autoplay so EDITH's reply actually plays.
+    final ctx = _context();
+    try {
+      await ctx.resume().toDart;
+    } catch (_) {
+      // resume can reject if already running; ignore.
+    }
+    final silent = ctx.createBuffer(AudioFormat.channels, 1, AudioFormat.playbackSampleRate);
+    final source = ctx.createBufferSource();
+    source.buffer = silent;
+    source.connect(ctx.destination);
+    source.start();
+    _playhead = ctx.currentTime;
   }
 
   @override

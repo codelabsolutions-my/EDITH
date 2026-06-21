@@ -6,7 +6,7 @@ import '../auth/auth_user.dart';
 import '../auth/google_signin_service.dart';
 import '../config.dart';
 import '../providers.dart';
-import 'chat_screen.dart';
+import 'voice_screen.dart';
 
 /// Login surface. Primary path is "Sign in with Google"; a dev-login form
 /// (email + display name) remains as a local-testing fallback.
@@ -40,7 +40,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       return;
     }
     await Navigator.of(context).pushReplacement(
-      MaterialPageRoute<void>(builder: (_) => const ChatScreen()),
+      MaterialPageRoute<void>(builder: (_) => const VoiceScreen()),
     );
   }
 

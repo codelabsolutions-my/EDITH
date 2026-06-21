@@ -55,12 +55,12 @@ void main() {
     expect(read().micState, MicState.capturing);
   });
 
-  test('enable surfaces an AudioException as an error, stays not-capturing',
-      () async {
+  test('enable surfaces a denied permission and offers a way out', () async {
     build(startThrows: const AudioException('denied'));
     await controller().enable();
 
-    expect(read().micState, MicState.permissionNeeded);
+    expect(read().micState, MicState.denied);
+    expect(read().isDenied, isTrue);
     expect(read().errorMessage, 'denied');
   });
 
