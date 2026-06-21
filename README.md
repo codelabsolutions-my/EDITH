@@ -14,9 +14,11 @@ Manglish — and it actually gets things done.
 
 ---
 
-> ⚠️ **Status: pre-implementation.** This repository currently contains the
-> design specs, engineering scaffolding, and the connector framework. Core
-> application code is being built. Star/watch to follow along.
+> 🚧 **Status: M2 — text + voice agent.** Running today: the tool-calling agent,
+> real auth (Google OIDC login + JWT sessions), Postgres persistence, the ILMU
+> voice pipeline (ASR/TTS + barge-in), and read-only **Gmail / Calendar / Contacts**
+> over OAuth — with a Flutter client for web, Android, and iOS. **[Setup guide →
+> `docs/SETUP.md`](docs/SETUP.md).** Next: proactivity (push). Star/watch to follow.
 
 ## What is EDITH?
 
