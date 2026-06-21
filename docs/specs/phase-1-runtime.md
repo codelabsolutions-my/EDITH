@@ -208,7 +208,7 @@ without an explicit reply, so nothing irreversible escapes a barge-in.
 
 | Concern | M0 | M1 (now) | Later |
 |---|---|---|---|
-| Auth | `verify_jwt` accepts any token | **Real JWT sessions** (`auth/`): mint access + refresh, rotation + reuse-revocation; `/auth/dev-login` (non-prod). WS verifies our JWT | OIDC RP id_token verify (`auth/oidc.py` seam) when provider creds land |
+| Auth | `verify_jwt` accepts any token | **Real JWT sessions** (`auth/`): mint access + refresh, rotation + reuse-revocation; **Google OIDC login** (`POST /auth/google` verifies the id_token via Google JWKS → our session, account-linking by verified email); `/auth/dev-login` (non-prod); WS verifies our JWT | Microsoft / Apple login (same `auth/oidc.py` shape, when creds land) |
 | Memory | module-level dict | **`PgMemory`** — Postgres `memories` + `tsvector` recall (interface unchanged; `InMemoryMemory` retained for tests/DB-less) | embeddings + reranker (P2+) |
 | Messages / actions | none / in-memory list | **persisted** via the `TurnRecorder` seam → `messages` + `action_log` | — |
 | Conversations | none | **row per session** (`conversations`) | summaries / resume |
