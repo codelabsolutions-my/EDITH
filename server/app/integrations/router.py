@@ -22,7 +22,12 @@ from .. import repositories as repo
 from ..auth.crypto import encrypt, load_key
 from ..auth.tokens import AuthError, verify_access_token
 from ..config import Settings, get_settings
-from .google_oauth import GMAIL_READONLY_SCOPE, GoogleOAuth, OAuthError
+from .google_oauth import (
+    CALENDAR_READONLY_SCOPE,
+    GMAIL_READONLY_SCOPE,
+    GoogleOAuth,
+    OAuthError,
+)
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
 
@@ -74,9 +79,8 @@ def _pool(request: Request) -> Any:
     return pool
 
 
-@router.get("/google/gmail/connect")
-async def gmail_connect(token: str, request: Request) -> RedirectResponse:
-    """Start Gmail consent. ``token`` is the user's access JWT (query for browser use)."""
+def _start_consent(token: str, scopes: list[str]) -> RedirectResponse:
+    """Authenticate the user with our JWT and redirect to Google consent for ``scopes``."""
     settings = get_settings()
     try:
         user = verify_access_token(token, secret=settings.JWT_SECRET)
@@ -85,10 +89,22 @@ async def gmail_connect(token: str, request: Request) -> RedirectResponse:
     oauth = _require_google(settings)
     url = oauth.build_auth_url(
         redirect_uri=_redirect_uri(settings),
-        scopes=[GMAIL_READONLY_SCOPE],
+        scopes=scopes,
         state=_mint_state(user.id, settings.JWT_SECRET),
     )
     return RedirectResponse(url)
+
+
+@router.get("/google/gmail/connect")
+async def gmail_connect(token: str) -> RedirectResponse:
+    """Start Gmail consent. ``token`` is the user's access JWT (query for browser use)."""
+    return _start_consent(token, [GMAIL_READONLY_SCOPE])
+
+
+@router.get("/google/calendar/connect")
+async def calendar_connect(token: str) -> RedirectResponse:
+    """Start Google Calendar consent (incremental — adds to any existing grant)."""
+    return _start_consent(token, [CALENDAR_READONLY_SCOPE])
 
 
 @router.get("/google/callback")

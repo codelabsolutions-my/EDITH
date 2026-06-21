@@ -39,7 +39,7 @@ def discover_connectors() -> None:
 
     registry.discover(tools)
     # Built-in service connectors that live as single modules (not a package).
-    from .connectors import gmail  # noqa: F401 — @register runs on import
+    from .connectors import gmail, google_calendar  # noqa: F401 — @register runs on import
 
 
 async def _startup_db(app: FastAPI) -> Database | None:

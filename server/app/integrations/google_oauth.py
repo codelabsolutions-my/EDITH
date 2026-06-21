@@ -20,8 +20,9 @@ AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 TOKEN_URL = "https://oauth2.googleapis.com/token"
 USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 
-# Gmail read-only — the only Google scope EDITH needs to read mail.
+# Read-only Google API scopes (least privilege; incremental, just-in-time).
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
+CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
 
 _REQUEST_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 

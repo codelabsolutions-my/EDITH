@@ -97,9 +97,10 @@ def test_connect_redirects_then_callback_stores_grant(pg_dsn: str, google_env) -
             assert row is not None
             assert GMAIL_READONLY_SCOPE in row["scopes"]
             assert row["access_token_enc"] is not None  # stored as ciphertext bytes
-            from app.integrations.credentials import gmail_access_token
+            from app.integrations.credentials import google_access_token
 
-            return await gmail_access_token(pool, get_settings(), user_id)
+            grant = await google_access_token(pool, get_settings(), user_id)
+            return grant[0] if grant else None
         finally:
             await pool.close()
 
