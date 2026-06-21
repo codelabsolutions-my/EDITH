@@ -27,6 +27,9 @@ from .connectors.registry import registry
 from .db import Database, apply_migrations
 from .integrations.router import router as integrations_router
 from .logging_config import configure_logging, get_logger
+from .proactivity.push import LogPushSender
+from .proactivity.router import router as devices_router
+from .proactivity.scheduler import ProactiveScheduler
 from .ws import router as ws_router
 
 log = get_logger("edith.main")
@@ -43,6 +46,7 @@ def discover_connectors() -> None:
         gmail,
         google_calendar,
         google_contacts,
+        reminders,
     )
 
 
@@ -71,9 +75,21 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings.require_runtime()
     discover_connectors()
     db = await _startup_db(app)
+
+    # Proactivity: run the scheduler when we have a database. Push delivery is logged
+    # until FCM credentials + a service-account token provider are wired (see push.py).
+    scheduler: ProactiveScheduler | None = None
+    if db is not None:
+        scheduler = ProactiveScheduler(
+            db.pool, LogPushSender(), poll_seconds=settings.PROACTIVE_POLL_SECONDS
+        )
+        scheduler.start()
+
     try:
         yield
     finally:
+        if scheduler is not None:
+            await scheduler.stop()
         if db is not None:
             await db.close()
 
@@ -86,6 +102,7 @@ def create_app() -> FastAPI:
     app.state.db_pool = None
     app.include_router(auth_router)
     app.include_router(integrations_router)
+    app.include_router(devices_router)
     app.include_router(ws_router)
 
     @app.get("/healthz")

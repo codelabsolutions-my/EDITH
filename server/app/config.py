@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     GMAIL_APP_PASSWORD: str = ""
     GMAIL_IMAP_HOST: str = "imap.gmail.com"
 
+    # ─── Proactivity (P3): scheduler + push ────────────────────────────────
+    PROACTIVE_POLL_SECONDS: float = 30.0
+    # Firebase project id for FCM HTTP v1 push. Without it (and a service-account
+    # token provider) push is logged, not delivered.
+    FCM_PROJECT_ID: str = ""
+
     # ─── ILMU (OpenAI-compatible) ──────────────────────────────────────────
     ILMU_API_BASE: str = ""
     ILMU_API_KEY: str = ""  # optional: empty => voice/LLM stays stubbed

@@ -283,5 +283,84 @@ async def insert_usage(
     )
 
 
+# ─── device_tokens (push targets) ────────────────────────────────────────────
+
+
+async def upsert_device_token(
+    conn: asyncpg.Connection, *, user_id: UUID | str, platform: str, token: str
+) -> None:
+    """Register (or re-point) a push token. A token belongs to one user/platform."""
+    await conn.execute(
+        """
+        INSERT INTO device_tokens (user_id, platform, token)
+        VALUES ($1, $2, $3)
+        ON CONFLICT (token) DO UPDATE SET user_id = EXCLUDED.user_id,
+                                          platform = EXCLUDED.platform
+        """,
+        _as_uuid(user_id),
+        platform,
+        token,
+    )
+
+
+async def get_device_tokens(conn: asyncpg.Connection, user_id: UUID | str) -> list[dict[str, Any]]:
+    rows = await conn.fetch(
+        "SELECT platform, token FROM device_tokens WHERE user_id = $1", _as_uuid(user_id)
+    )
+    return [dict(r) for r in rows]
+
+
+# ─── reminders ────────────────────────────────────────────────────────────────
+
+
+async def insert_reminder(
+    conn: asyncpg.Connection, *, user_id: UUID | str, text: str, remind_at: datetime
+) -> int:
+    row = await conn.fetchrow(
+        "INSERT INTO reminders (user_id, text, remind_at) VALUES ($1, $2, $3) RETURNING id",
+        _as_uuid(user_id),
+        text,
+        remind_at,
+    )
+    assert row is not None
+    return row["id"]  # type: ignore[no-any-return]
+
+
+async def due_reminders(
+    conn: asyncpg.Connection, *, now: datetime, limit: int = 100
+) -> list[dict[str, Any]]:
+    """Undelivered reminders whose time has come, oldest first."""
+    rows = await conn.fetch(
+        """
+        SELECT id, user_id, text, remind_at FROM reminders
+        WHERE NOT delivered AND remind_at <= $1
+        ORDER BY remind_at ASC
+        LIMIT $2
+        """,
+        now,
+        limit,
+    )
+    return [dict(r) for r in rows]
+
+
+async def mark_reminder_delivered(conn: asyncpg.Connection, reminder_id: int) -> None:
+    await conn.execute("UPDATE reminders SET delivered = TRUE WHERE id = $1", reminder_id)
+
+
+async def list_reminders(
+    conn: asyncpg.Connection, user_id: UUID | str, *, include_delivered: bool = False
+) -> list[dict[str, Any]]:
+    rows = await conn.fetch(
+        """
+        SELECT id, text, remind_at, delivered FROM reminders
+        WHERE user_id = $1 AND ($2 OR NOT delivered)
+        ORDER BY remind_at ASC
+        """,
+        _as_uuid(user_id),
+        include_delivered,
+    )
+    return [dict(r) for r in rows]
+
+
 def _as_uuid(value: UUID | str) -> UUID:
     return value if isinstance(value, UUID) else UUID(str(value))

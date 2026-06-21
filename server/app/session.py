@@ -39,6 +39,7 @@ from .events import (
     TextIn,
 )
 from .integrations.credentials import build_credentials
+from .proactivity.reminders import ReminderStore
 from .voice.asr import IlmuASR
 from .voice.pipeline import VoicePipeline, WsSendBytes
 from .voice.text_transport import _CLOSE, TextTransport, WsSend
@@ -174,11 +175,14 @@ class Session:
                 creds = await build_credentials(self._db_pool, self._settings, self._user_id)
             except Exception:
                 log.exception("failed to resolve connector credentials")
+        extra: dict[str, object] = {"memory": memory}
+        if self._db_pool is not None:
+            extra["reminder_store"] = ReminderStore(self._db_pool, self._user_id)
         catalog = ToolCatalog(
             self._registry,
             user_id=self._user_id,
             cred_lookup=lambda key: creds.get(key),
-            extra={"memory": memory},
+            extra=extra,
         )
         agent = AgentLoop(
             user_id=self._user_id,
