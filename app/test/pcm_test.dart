@@ -35,6 +35,24 @@ void main() {
       final floats = Pcm.int16ToFloats(Uint8List.fromList([0, 0, 1]));
       expect(floats.length, 1); // dangling byte dropped
     });
+
+    test('int16ToFloats decodes an unaligned (odd-offset) view', () {
+      // Simulate a WS binary frame that is an odd-offset slice of a buffer;
+      // Int16List.view would throw here, ByteData-based decode must not.
+      final backing = Uint8List.fromList([0xFF, 0x00, 0x00, 0x00, 0x80]);
+      final view = Uint8List.sublistView(backing, 1); // offsetInBytes == 1
+      expect(view.offsetInBytes.isOdd, isTrue);
+      final floats = Pcm.int16ToFloats(view);
+      expect(floats.length, 2);
+      expect(floats[0], closeTo(0.0, 0.001)); // 0x0000
+      expect(floats[1], closeTo(-1.0, 0.001)); // 0x8000 LE -> -32768
+    });
+
+    test('int16ToFloats reads little-endian regardless of value', () {
+      // 0x00 0x01 LE == 256.
+      final floats = Pcm.int16ToFloats(Uint8List.fromList([0x00, 0x01]));
+      expect(floats[0], closeTo(256 / 32768.0, 0.0001));
+    });
   });
 
   group('Pcm.resample', () {

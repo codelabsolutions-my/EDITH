@@ -75,8 +75,14 @@ class _VoiceScreenState extends ConsumerState<VoiceScreen> {
     if (token == null) {
       return;
     }
+    final voice = ref.read(voiceControllerProvider.notifier);
+    // Unlock playback FIRST, synchronously within the tap gesture — before the
+    // awaited WS reconnect, which would otherwise consume the gesture
+    // activation and leave the AudioContext suspended (silent).
+    // ignore: unawaited_futures
+    voice.primePlayback();
     await ref.read(wsTransportProvider).reconnect(token, mode: 'voice');
-    await ref.read(voiceControllerProvider.notifier).enable();
+    await voice.enable();
   }
 
   Future<void> _stopVoice() async {

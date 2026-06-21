@@ -82,15 +82,21 @@ class VoiceController extends Notifier<VoiceState> {
   /// MUST be invoked from a user-gesture handler on web — `getUserMedia` and
   /// `AudioContext.resume()` only succeed inside a gesture. The first "Tap to
   /// talk" is that gesture.
+  /// Unlock audio playback. MUST be the FIRST thing called from the tap-to-talk
+  /// handler — before any `await` (WS reconnect etc.), because the browser's
+  /// user-gesture activation that lets `AudioContext.resume()` succeed does not
+  /// survive an awaited gap. Creating + resuming the context here, inside the
+  /// gesture, is what makes EDITH's reply audible.
+  Future<void> primePlayback() => _playback.prime();
+
   Future<void> enable() async {
     if (state.micState == MicState.capturing ||
         state.micState == MicState.starting) {
       return;
     }
     state = state.copyWith(micState: MicState.starting, clearError: true);
-    // Unlock playback while we're still inside the user gesture, so EDITH's
-    // spoken reply actually plays (a context resumed only on the first inbound
-    // frame stays suspended → silent).
+    // Belt-and-suspenders: prime again here too (cheap no-op if already done),
+    // so callers that skip primePlayback() still get unlocked playback.
     await _playback.prime();
     try {
       await _capture.start();

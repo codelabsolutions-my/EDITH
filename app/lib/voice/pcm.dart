@@ -19,17 +19,23 @@ class Pcm {
     return out.buffer.asUint8List();
   }
 
-  /// Interpret 16-bit signed LE PCM bytes as normalised float samples.
+  /// Interpret 16-bit signed **little-endian** PCM bytes as normalised float
+  /// samples in [-1, 1].
+  ///
+  /// Reads through [ByteData.getInt16] with an explicit endian so it is correct
+  /// regardless of host endianness and — unlike `Int16List.view` — never throws
+  /// on an odd `offsetInBytes` (WebSocket binary frames can arrive as an
+  /// unaligned view of a larger buffer).
   static Float32List int16ToFloats(Uint8List bytes) {
-    final usableLength = bytes.length - (bytes.length % 2);
-    final samples = Int16List.view(
+    final sampleCount = bytes.length ~/ 2;
+    final view = ByteData.view(
       bytes.buffer,
       bytes.offsetInBytes,
-      usableLength ~/ 2,
+      sampleCount * 2,
     );
-    final out = Float32List(samples.length);
-    for (var i = 0; i < samples.length; i++) {
-      out[i] = samples[i] / 32768.0;
+    final out = Float32List(sampleCount);
+    for (var i = 0; i < sampleCount; i++) {
+      out[i] = view.getInt16(i * 2, Endian.little) / 32768.0;
     }
     return out;
   }

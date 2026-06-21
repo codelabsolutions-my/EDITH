@@ -22,6 +22,9 @@ class WebAudioPlayback implements AudioPlayback {
   /// The time (in the AudioContext clock) at which the next frame should start.
   double _playhead = 0;
 
+  /// Whether the gesture-time unlock has already run.
+  bool _primed = false;
+
   final _level = StreamController<double>.broadcast();
 
   web.AudioContext _context() {
@@ -40,19 +43,29 @@ class WebAudioPlayback implements AudioPlayback {
     // MUST be called from a user gesture (the "tap to talk" handler). A context
     // created lazily on the first inbound frame is outside a gesture and stays
     // suspended → silent. Creating + resuming it here, and playing one silent
-    // buffer, unlocks autoplay so EDITH's reply actually plays.
+    // buffer, unlocks autoplay so EDITH's reply actually plays. Idempotent.
     final ctx = _context();
+    // Synchronously kick a resume + play a silent buffer inside the gesture;
+    // doing the createBufferSource().start() synchronously is what unlocks
+    // autoplay (don't await before it).
+    if (!_primed) {
+      _primed = true;
+      final silent = ctx.createBuffer(
+        AudioFormat.channels,
+        1,
+        AudioFormat.playbackSampleRate,
+      );
+      final source = ctx.createBufferSource();
+      source.buffer = silent;
+      source.connect(ctx.destination);
+      source.start();
+      _playhead = ctx.currentTime;
+    }
     try {
       await ctx.resume().toDart;
     } catch (_) {
       // resume can reject if already running; ignore.
     }
-    final silent = ctx.createBuffer(AudioFormat.channels, 1, AudioFormat.playbackSampleRate);
-    final source = ctx.createBufferSource();
-    source.buffer = silent;
-    source.connect(ctx.destination);
-    source.start();
-    _playhead = ctx.currentTime;
   }
 
   @override
