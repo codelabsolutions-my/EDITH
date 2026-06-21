@@ -14,11 +14,13 @@ Manglish — and it actually gets things done.
 
 ---
 
-> 🚧 **Status: M2 — text + voice agent.** Running today: the tool-calling agent,
-> real auth (Google OIDC login + JWT sessions), Postgres persistence, the ILMU
-> voice pipeline (ASR/TTS + barge-in), and read-only **Gmail / Calendar / Contacts**
-> over OAuth — with a Flutter client for web, Android, and iOS. **[Setup guide →
-> `docs/SETUP.md`](docs/SETUP.md).** Next: proactivity (push). Star/watch to follow.
+> 🚧 **Status: text + voice agent, through P5.** Running today: the tool-calling
+> agent, Google OIDC login + JWT sessions, Postgres persistence, the ILMU voice
+> pipeline (ASR/TTS + barge-in), **Gmail / Calendar / Contacts** over OAuth,
+> **proactive reminders + push**, **WhatsApp** (Cloud API send), and **smart home**
+> (Home Assistant) — with a Flutter client for web, Android, and iOS. **[Setup guide
+> → `docs/SETUP.md`](docs/SETUP.md).** Monetization is the separate private layer.
+> Star/watch to follow.
 
 ## What is EDITH?
 

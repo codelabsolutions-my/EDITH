@@ -159,6 +159,21 @@ The gmail connector prefers OAuth when present and falls back to IMAP otherwise.
 
 ---
 
+## 5a. Other capabilities (all optional)
+
+| Capability | Enable with | Tools |
+|---|---|---|
+| **Reminders + push** | works out of the box (push is *logged* until `FCM_PROJECT_ID` + a service-account token provider are set); register a device via `POST /devices/register` | `set_reminder`, `list_reminders` |
+| **WhatsApp send** (EDITH's number, Cloud API) | `WHATSAPP_PHONE_NUMBER_ID`, `WHATSAPP_ACCESS_TOKEN` | `send_whatsapp_message` (confirmed) |
+| **Smart home** | `HOME_ASSISTANT_URL`, `HOME_ASSISTANT_TOKEN` (long-lived) | `list_devices`, `set_device` (confirmed) |
+
+Reminders use the agent's relative-date math: "remind me in 30 minutes to call Ali"
+→ the scheduler pushes it when due. Reading your *personal* WhatsApp is an Android
+on-device feature (NotificationListener), separate from the Cloud API above.
+
+> Anything *external or irreversible* (send WhatsApp, switch a device) is a **CONFIRM**
+> tool — EDITH asks before doing it. Reads are automatic.
+
 ## 6. The app (Flutter)
 
 ```bash
