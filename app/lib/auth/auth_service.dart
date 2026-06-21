@@ -54,6 +54,26 @@ class AuthService {
     return session;
   }
 
+  /// `POST /auth/google` — exchanges a verified Google `id_token` (from the
+  /// native Google Sign-In SDK) for our session. Same token handling as
+  /// [devLogin]: stores the pair in the secure store.
+  Future<AuthSession> googleLogin({required String idToken}) async {
+    final json = await _post(
+      '/auth/google',
+      jsonEncode({'id_token': idToken}),
+    );
+    final session = AuthSession(
+      accessToken: json['access_token'] as String,
+      refreshToken: json['refresh_token'] as String,
+      user: AuthUser.fromJson(json['user'] as Map<String, dynamic>),
+    );
+    await tokenStore.write(
+      access: session.accessToken,
+      refresh: session.refreshToken,
+    );
+    return session;
+  }
+
   /// `POST /auth/refresh` — swaps a refresh token for a fresh pair.
   ///
   /// Returns the new access token, having persisted both new tokens.

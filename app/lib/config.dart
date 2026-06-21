@@ -16,4 +16,24 @@ class AppConfig {
     'EDITH_WS_URL',
     defaultValue: 'ws://localhost:8000/ws',
   );
+
+  /// Google OAuth **web** client ID — required for Google Sign-In on the web
+  /// target and used as the `serverClientId` on mobile so the issued id_token
+  /// carries an audience the server accepts. The user creates this in Google
+  /// Cloud Console; pass it via
+  /// `--dart-define=GOOGLE_WEB_CLIENT_ID=xxxx.apps.googleusercontent.com`.
+  static const String googleWebClientId = String.fromEnvironment(
+    'GOOGLE_WEB_CLIENT_ID',
+  );
+
+  /// Google OAuth **iOS** client ID (only needed for the iOS build). Passed via
+  /// `--dart-define=GOOGLE_IOS_CLIENT_ID=...`. Android derives its client from
+  /// the SHA-1 + package registered in the console (no value needed here).
+  static const String googleIosClientId = String.fromEnvironment(
+    'GOOGLE_IOS_CLIENT_ID',
+  );
+
+  /// Whether a Google web client ID is configured (gates the Sign-in button on
+  /// platforms that require it).
+  static bool get hasGoogleWebClientId => googleWebClientId.isNotEmpty;
 }

@@ -2,11 +2,13 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'auth/auth_service.dart';
 import 'auth/auth_user.dart';
+import 'auth/google_signin_service.dart';
 import 'auth/token_store.dart';
 import 'chat/chat_controller.dart';
 import 'chat/chat_models.dart';
 import 'voice/voice_controller.dart';
 import 'voice/voice_state.dart';
+import 'widget/home_widget_service.dart';
 import 'ws/ws_transport.dart';
 
 /// Secure token store, shared by the auth service and (later) reconnect logic.
@@ -18,6 +20,10 @@ final authServiceProvider = Provider<AuthService>((ref) {
   ref.onDispose(service.close);
   return service;
 });
+
+/// Google Sign-In wrapper (overridden with a fake in tests).
+final googleSignInServiceProvider =
+    Provider<GoogleSignInService>((ref) => PluginGoogleSignInService());
 
 /// Holds the currently authenticated user (null until dev-login succeeds).
 class AuthUserNotifier extends Notifier<AuthUser?> {
@@ -41,6 +47,23 @@ class AccessTokenNotifier extends Notifier<String?> {
 
 final accessTokenProvider =
     NotifierProvider<AccessTokenNotifier, String?>(AccessTokenNotifier.new);
+
+/// True when the app was launched by tapping the home-screen widget's
+/// tap-to-talk action; the chat screen consumes it to auto-enable voice mode.
+class LaunchedForVoiceNotifier extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool value) => state = value;
+}
+
+final launchedForVoiceProvider =
+    NotifierProvider<LaunchedForVoiceNotifier, bool>(
+        LaunchedForVoiceNotifier.new);
+
+/// Android home-screen widget bridge (status push + tap deep-link).
+final homeWidgetServiceProvider =
+    Provider<HomeWidgetService>((ref) => const HomeWidgetService());
 
 /// The `/ws` transport, disposed with the provider scope.
 final wsTransportProvider = Provider<WsTransport>((ref) {

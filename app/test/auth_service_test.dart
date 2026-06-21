@@ -64,6 +64,55 @@ void main() {
     });
   });
 
+  group('AuthService.googleLogin', () {
+    test('posts the id_token and persists the returned session', () async {
+      late http.Request captured;
+      final client = MockClient((request) async {
+        captured = request;
+        return http.Response(
+          jsonEncode({
+            'access_token': 'gacc',
+            'refresh_token': 'gref',
+            'user': {
+              'id': 'g1',
+              'display_name': 'Siti',
+              'primary_email': 'siti@gmail.com',
+            },
+          }),
+          200,
+        );
+      });
+      final store = InMemoryTokenStore();
+      final service = AuthService(
+        tokenStore: store,
+        client: client,
+        baseUrl: 'http://server',
+      );
+
+      final session = await service.googleLogin(idToken: 'google-id-token');
+
+      expect(captured.url.toString(), 'http://server/auth/google');
+      expect(jsonDecode(captured.body), {'id_token': 'google-id-token'});
+      expect(session.accessToken, 'gacc');
+      expect(session.user.primaryEmail, 'siti@gmail.com');
+      expect(await store.readAccess(), 'gacc');
+      expect(await store.readRefresh(), 'gref');
+    });
+
+    test('throws AuthException when the server rejects the id_token', () async {
+      final client = MockClient((_) async => http.Response('bad token', 401));
+      final service = AuthService(
+        tokenStore: InMemoryTokenStore(),
+        client: client,
+        baseUrl: 'http://server',
+      );
+      expect(
+        () => service.googleLogin(idToken: 'nope'),
+        throwsA(isA<AuthException>()),
+      );
+    });
+  });
+
   group('AuthService.refresh', () {
     test('swaps the stored refresh token for a fresh pair', () async {
       final store = InMemoryTokenStore();

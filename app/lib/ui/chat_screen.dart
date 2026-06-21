@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../chat/chat_models.dart';
 import '../providers.dart';
+import '../voice/voice_state.dart';
 import '../ws/events.dart';
 import 'orb.dart';
 
@@ -19,6 +20,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   final _scrollController = ScrollController();
   ProviderSubscription<ChatState>? _confirmListener;
 
+  ProviderSubscription<VoiceState>? _voiceStatusListener;
+
   @override
   void initState() {
     super.initState();
@@ -33,11 +36,47 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         _scrollToBottom();
       },
     );
+    // Mirror voice status onto the home-screen widget.
+    _voiceStatusListener = ref.listenManual<VoiceState>(
+      voiceControllerProvider,
+      (previous, next) {
+        if (previous?.micState != next.micState ||
+            previous?.sessionState != next.sessionState) {
+          ref
+              .read(homeWidgetServiceProvider)
+              .setStatus(_widgetStatus(next));
+        }
+      },
+    );
+    // If launched from the widget's tap-to-talk, enter voice mode once ready.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (ref.read(launchedForVoiceProvider)) {
+        ref.read(launchedForVoiceProvider.notifier).set(false);
+        _toggleVoice();
+      }
+    });
+  }
+
+  String _widgetStatus(VoiceState v) {
+    if (!v.isVoiceOn) {
+      return 'Tap to talk';
+    }
+    switch (v.sessionState) {
+      case SessionState.listening:
+        return 'Listening…';
+      case SessionState.thinking:
+        return 'Thinking…';
+      case SessionState.speaking:
+        return 'Speaking…';
+      case SessionState.idle:
+        return 'Ready';
+    }
   }
 
   @override
   void dispose() {
     _confirmListener?.close();
+    _voiceStatusListener?.close();
     _inputController.dispose();
     _scrollController.dispose();
     super.dispose();
