@@ -28,6 +28,14 @@ class Settings(BaseSettings):
     # ─── App ───────────────────────────────────────────────────────────────
     ENV: str = "development"
     LOG_LEVEL: str = "info"
+    # CORS allowed origins for the browser client (comma-separated, or "*" for any).
+    # The Flutter web app is served from a different origin than the API, so the
+    # browser preflights cross-origin requests — without this they fail.
+    CORS_ALLOW_ORIGINS: str = "*"
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ALLOW_ORIGINS.split(",") if o.strip()] or ["*"]
 
     # ─── Database ──────────────────────────────────────────────────────────
     DATABASE_URL: str = "postgresql://edith:edith@localhost:5434/edith"

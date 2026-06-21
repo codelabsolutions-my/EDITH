@@ -18,6 +18,7 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from . import agent  # noqa: F401 — ensure the agent package is importable
 from .auth import router as auth_router
@@ -102,6 +103,19 @@ def create_app() -> FastAPI:
     discover_connectors()
     app = FastAPI(title="EDITH", version="0.0.0", lifespan=lifespan)
     app.state.db_pool = None
+
+    # The browser client is a different origin than the API; allow it (and answer
+    # preflight OPTIONS). Auth is via the Authorization header, not cookies, so we
+    # don't need credentialed CORS — which lets us allow "*" in development.
+    origins = get_settings().cors_origins
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=origins,
+        allow_credentials=False,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
     app.include_router(auth_router)
     app.include_router(integrations_router)
     app.include_router(devices_router)
