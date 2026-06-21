@@ -90,14 +90,17 @@ async def logout(body: LogoutRequest, request: Request) -> dict[str, bool]:
 async def provider_login(
     provider: str, body: ProviderLoginRequest, request: Request
 ) -> dict[str, Any]:
-    """OIDC login. Fails closed until relying-party credentials are configured."""
+    """SSO login: verify the provider id_token, then issue our session tokens."""
+    settings = get_settings()
     try:
-        identity = await verify_id_token(provider, body.id_token)
+        identity = await verify_id_token(provider, body.id_token, settings)
     except AuthError as exc:
         raise HTTPException(status_code=401, detail=str(exc)) from exc
-    # When OIDC is wired: get-or-create user from identity, then issue tokens.
     service = _auth_service(request)
-    tokens = await service.dev_login(
-        email=identity.email or "", display_name=identity.name or body.display_name
+    tokens = await service.login_from_identity(
+        provider=identity.provider,
+        subject=identity.subject,
+        email=identity.email,
+        name=identity.name or body.display_name,
     )
     return _tokens_response(tokens)

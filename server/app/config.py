@@ -43,6 +43,16 @@ class Settings(BaseSettings):
     # {PUBLIC_BASE_URL}/integrations/google/callback as an authorized redirect URI.
     GOOGLE_CLIENT_ID: str = ""
     GOOGLE_CLIENT_SECRET: str = ""
+    # Extra accepted id_token audiences (comma-separated): the Android / iOS OAuth
+    # client IDs, since native Google Sign-In issues id_tokens with those as aud.
+    GOOGLE_ALLOWED_AUDIENCES: str = ""
+
+    @property
+    def google_audiences(self) -> list[str]:
+        """All client IDs whose id_tokens we accept (web + mobile)."""
+        extra = [a.strip() for a in self.GOOGLE_ALLOWED_AUDIENCES.split(",") if a.strip()]
+        return [a for a in (self.GOOGLE_CLIENT_ID, *extra) if a]
+
     # Public origin used to build OAuth redirect URIs (no trailing slash).
     PUBLIC_BASE_URL: str = "http://localhost:8000"
 

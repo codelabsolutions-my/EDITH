@@ -78,7 +78,9 @@ async def upsert_provider_account(
             email = EXCLUDED.email,
             scopes = EXCLUDED.scopes,
             access_token_enc = EXCLUDED.access_token_enc,
-            refresh_token_enc = COALESCE(EXCLUDED.refresh_token_enc, provider_accounts.refresh_token_enc),
+            refresh_token_enc = COALESCE(
+                EXCLUDED.refresh_token_enc, provider_accounts.refresh_token_enc
+            ),
             token_expiry = EXCLUDED.token_expiry
         """,
         _as_uuid(user_id),
@@ -101,6 +103,59 @@ async def get_provider_account(
         provider,
     )
     return dict(row) if row else None
+
+
+async def get_provider_account_by_subject(
+    conn: asyncpg.Connection, *, provider: str, provider_subject: str
+) -> dict[str, Any] | None:
+    """Find an account by the IdP identity (globally unique per provider)."""
+    row = await conn.fetchrow(
+        "SELECT * FROM provider_accounts WHERE provider = $1 AND provider_subject = $2",
+        provider,
+        provider_subject,
+    )
+    return dict(row) if row else None
+
+
+async def upsert_identity_account(
+    conn: asyncpg.Connection,
+    *,
+    user_id: UUID | str,
+    provider: str,
+    provider_subject: str,
+    email: str | None,
+) -> None:
+    """Link an OIDC identity to a user WITHOUT touching API tokens/scopes.
+
+    Identity login and API-scope grants share one row per (user, provider); this
+    deliberately preserves any existing ``*_enc`` tokens and ``scopes`` so signing in
+    never wipes a previously connected Gmail/Calendar grant.
+    """
+    await conn.execute(
+        """
+        INSERT INTO provider_accounts (user_id, provider, provider_subject, email)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (user_id, provider) DO UPDATE SET
+            provider_subject = EXCLUDED.provider_subject,
+            email = COALESCE(EXCLUDED.email, provider_accounts.email)
+        """,
+        _as_uuid(user_id),
+        provider,
+        provider_subject,
+        email,
+    )
+
+
+async def create_user(
+    conn: asyncpg.Connection, *, display_name: str | None, email: str | None
+) -> dict[str, Any]:
+    row = await conn.fetchrow(
+        "INSERT INTO users (display_name, primary_email) VALUES ($1, $2) RETURNING *",
+        display_name,
+        email,
+    )
+    assert row is not None
+    return dict(row)
 
 
 # ─── refresh_tokens ─────────────────────────────────────────────────────────

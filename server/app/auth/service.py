@@ -55,6 +55,34 @@ class AuthService:
             )
             return await self._issue(conn, user, family_id=str(uuid4()))
 
+    async def login_from_identity(
+        self, *, provider: str, subject: str, email: str | None, name: str | None
+    ) -> SessionTokens:
+        """Sign a verified OIDC identity in: find/create the user, link, issue tokens.
+
+        Resolution order: an existing account for this exact IdP identity → else a
+        user with this verified email (account linking) → else a brand-new user.
+        """
+        async with self._pool.acquire() as conn, conn.transaction():
+            account = await repo.get_provider_account_by_subject(
+                conn, provider=provider, provider_subject=subject
+            )
+            if account is not None:
+                user = await repo.get_user(conn, account["user_id"])
+            elif email:
+                user = await repo.get_or_create_user_by_email(conn, email=email, display_name=name)
+            else:
+                user = await repo.create_user(conn, display_name=name, email=None)
+            assert user is not None
+            await repo.upsert_identity_account(
+                conn,
+                user_id=user["id"],
+                provider=provider,
+                provider_subject=subject,
+                email=email,
+            )
+            return await self._issue(conn, user, family_id=str(uuid4()))
+
     async def refresh(self, raw_refresh: str) -> SessionTokens:
         """Rotate a refresh token. Reuse of a revoked token kills the family.
 
