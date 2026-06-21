@@ -8,6 +8,8 @@ import 'chat/chat_controller.dart';
 import 'chat/chat_models.dart';
 import 'voice/voice_controller.dart';
 import 'voice/voice_state.dart';
+import 'wakeword/wake_word_detector.dart';
+import 'whatsapp/whatsapp_assist.dart';
 import 'widget/home_widget_service.dart';
 import 'ws/ws_transport.dart';
 
@@ -80,3 +82,20 @@ final chatControllerProvider =
 /// Voice subsystem: mic capture, PCM playback, barge-in, orb level.
 final voiceControllerProvider =
     NotifierProvider<VoiceController, VoiceState>(VoiceController.new);
+
+/// WhatsApp personal assist (Android NotificationListenerService).
+///
+/// Resolves to the channel-backed implementation on Android and a no-op
+/// elsewhere — keeps the rest of the app platform-agnostic.
+final whatsAppAssistProvider = Provider<WhatsAppAssist>((ref) {
+  final assist = ChannelWhatsAppAssist();
+  return assist.isSupported ? assist : const UnsupportedWhatsAppAssist();
+});
+
+/// On-device wake word. Defaults to the disabled stub until a real engine + key
+/// are configured (no keys hardcoded).
+final wakeWordDetectorProvider = Provider<WakeWordDetector>((ref) {
+  final detector = DisabledWakeWordDetector();
+  ref.onDispose(detector.dispose);
+  return detector;
+});

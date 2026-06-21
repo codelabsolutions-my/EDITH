@@ -48,6 +48,20 @@
                 android:resource="@xml/edith_widget_info" />
         </receiver>
 
+        <!-- WhatsApp personal assist: reads incoming WhatsApp notifications and
+             replies via their RemoteInput. The user must grant notification
+             access in Settings (deep-linked from the app). On-device, official
+             OS API — never WhatsApp Web scraping; Android only. -->
+        <service
+            android:name=".WhatsAppNotificationListenerService"
+            android:exported="false"
+            android:label="EDITH WhatsApp assist"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

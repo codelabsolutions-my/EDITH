@@ -6,6 +6,7 @@ import '../providers.dart';
 import '../voice/voice_state.dart';
 import '../ws/events.dart';
 import 'orb.dart';
+import 'whatsapp_assist_screen.dart';
 
 /// The text chat surface with EDITH.
 class ChatScreen extends ConsumerStatefulWidget {
@@ -159,6 +160,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ? 'EDITH — ${user!.displayName}'
             : 'EDITH'),
         actions: [
+          if (ref.watch(whatsAppAssistProvider).isSupported)
+            IconButton(
+              tooltip: 'WhatsApp assist',
+              icon: const Icon(Icons.chat),
+              onPressed: () => Navigator.of(context).push(
+                MaterialPageRoute<void>(
+                  builder: (_) => const WhatsAppAssistScreen(),
+                ),
+              ),
+            ),
           IconButton(
             tooltip: voice.isVoiceOn ? 'Switch to text' : 'Switch to voice',
             icon: Icon(voice.isVoiceOn ? Icons.keyboard : Icons.mic),
