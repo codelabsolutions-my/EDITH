@@ -79,6 +79,58 @@ void main() {
     });
   });
 
+  group('StreamingResampler', () {
+    test('passes blocks through unchanged when rates match', () {
+      final r = StreamingResampler(inputRate: 16000, outputRate: 16000);
+      final block = Float32List.fromList([0.1, 0.2, 0.3]);
+      expect(r.process(block), same(block));
+    });
+
+    test('total output count matches a whole-signal 3:1 downsample', () {
+      // 48k -> 16k of 480 samples (10ms) split into 128-sample worklet quanta.
+      final signal = Float32List(480);
+      for (var i = 0; i < signal.length; i++) {
+        signal[i] = (i % 7) / 7.0; // arbitrary non-trivial content
+      }
+      final streaming = StreamingResampler(inputRate: 48000, outputRate: 16000);
+      var total = 0;
+      for (var off = 0; off < signal.length; off += 128) {
+        final end = (off + 128) > signal.length ? signal.length : off + 128;
+        total += streaming.process(Float32List.sublistView(signal, off, end)).length;
+      }
+      // ~480/3 = 160 output samples; per-block resampling would lose ~1 sample
+      // per block (floor(128/3) repeatedly) and drift. Allow ±1 for end effects.
+      expect(total, closeTo(160, 1));
+    });
+
+    test('is phase-coherent: blockwise ≈ whole-signal resample of a ramp', () {
+      // A linear ramp resampled correctly stays a linear ramp; a per-block
+      // resampler would kink at every block edge.
+      final ramp = Float32List(384);
+      for (var i = 0; i < ramp.length; i++) {
+        ramp[i] = i / ramp.length;
+      }
+      final streaming = StreamingResampler(inputRate: 48000, outputRate: 16000);
+      final out = <double>[];
+      for (var off = 0; off < ramp.length; off += 128) {
+        out.addAll(
+          streaming.process(Float32List.sublistView(ramp, off, off + 128)),
+        );
+      }
+      // Output should itself be (close to) a monotonic linear ramp — verify
+      // consecutive deltas are uniform (no per-block discontinuity/kink).
+      final deltas = [
+        for (var i = 1; i < out.length; i++) out[i] - out[i - 1],
+      ];
+      final avg = deltas.reduce((a, b) => a + b) / deltas.length;
+      for (final d in deltas) {
+        expect(d, closeTo(avg, 0.002),
+            reason: 'a phase-coherent ramp has uniform step; a kink means the '
+                'resampler restarted phase at a block boundary');
+      }
+    });
+  });
+
   group('Pcm.rms16', () {
     test('silence is zero', () {
       final bytes = Pcm.floatsToInt16(List<double>.filled(100, 0));

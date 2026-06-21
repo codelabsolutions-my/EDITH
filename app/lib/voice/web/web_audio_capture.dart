@@ -38,6 +38,10 @@ class WebAudioCapture implements AudioCapture {
   final PcmFramer _framer = PcmFramer();
   final _frames = StreamController<Uint8List>.broadcast();
 
+  /// Phase-coherent resampler from the mic's native rate to 16 kHz, kept across
+  /// worklet blocks so there's no discontinuity at each 128-sample boundary.
+  StreamingResampler? _resampler;
+
   @override
   Stream<Uint8List> get frames => _frames.stream;
 
@@ -78,6 +82,10 @@ class WebAudioCapture implements AudioCapture {
     // capture actually runs. start() is itself invoked from the mic-button tap.
     await ctx.resume().toDart;
     final inputRate = ctx.sampleRate.toInt();
+    _resampler = StreamingResampler(
+      inputRate: inputRate,
+      outputRate: AudioFormat.captureSampleRate,
+    );
 
     // Register the worklet module from a Blob URL (a JS MIME type is required
     // or some browsers reject it).
@@ -106,11 +114,12 @@ class WebAudioCapture implements AudioCapture {
   }
 
   void _onSamples(Float32List samples, int inputRate) {
-    final resampled = Pcm.resample(
-      samples,
-      inputRate,
-      AudioFormat.captureSampleRate,
-    );
+    // Phase-coherent streaming resample (NOT per-block) so consecutive worklet
+    // quanta join into one continuous 16 kHz signal — otherwise ASR mishears.
+    final resampled = (_resampler ??= StreamingResampler(
+      inputRate: inputRate,
+      outputRate: AudioFormat.captureSampleRate,
+    )).process(samples);
     final bytes = Pcm.floatsToInt16(resampled);
     for (final frame in _framer.add(bytes)) {
       _frames.add(frame);
@@ -130,6 +139,7 @@ class WebAudioCapture implements AudioCapture {
     _stream = null;
     _node = null;
     _sourceNode = null;
+    _resampler = null;
   }
 
   @override

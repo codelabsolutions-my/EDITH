@@ -55,6 +55,20 @@ void main() {
     expect(read().micState, MicState.capturing);
   });
 
+  test('primePlayback unlocks playback (called first inside the gesture)',
+      () async {
+    build();
+    await controller().primePlayback();
+    expect(playback.primed, isTrue);
+  });
+
+  test('enable also primes playback', () async {
+    build();
+    transport.connect('tok', mode: 'voice');
+    await controller().enable();
+    expect(playback.primed, isTrue);
+  });
+
   test('enable surfaces a denied permission and offers a way out', () async {
     build(startThrows: const AudioException('denied'));
     await controller().enable();

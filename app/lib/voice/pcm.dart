@@ -78,3 +78,61 @@ class Pcm {
     return math.sqrt(sumSquares / floats.length);
   }
 }
+
+/// Continuous linear resampler for a *streamed* mono signal.
+///
+/// The browser AudioWorklet hands us small render quanta (128 samples) one at a
+/// time. Resampling each block in isolation with [Pcm.resample] restarts the
+/// interpolation phase at every block boundary and discards the fractional
+/// sample at each edge — over a continuous stream that injects a discontinuity
+/// every ~2.7 ms, producing a buzzing/aliased signal that ASR mishears. This
+/// carries the read position and the last sample of the previous block across
+/// calls so the output is a single, phase-coherent stream.
+class StreamingResampler {
+  StreamingResampler({required this.inputRate, required this.outputRate})
+      : _ratio = inputRate / outputRate;
+
+  final int inputRate;
+  final int outputRate;
+  final double _ratio;
+
+  /// The last sample of the previously-processed block (index -1 of this one).
+  double _prevSample = 0;
+  bool _hasPrev = false;
+
+  /// Fractional read position into the *current* block's coordinate space,
+  /// where index -1 is [_prevSample] and index 0 is the first new sample.
+  double _pos = 0;
+
+  /// Resample one block, continuing from where the last block left off.
+  Float32List process(Float32List block) {
+    if (inputRate == outputRate) {
+      return block;
+    }
+    if (block.isEmpty) {
+      return block;
+    }
+    final out = <double>[];
+    // `_pos` is measured against the start of [block]; -1 maps to _prevSample.
+    while (_pos < block.length) {
+      final i0 = _pos.floor();
+      final frac = _pos - i0;
+      final s0 = i0 < 0 ? _prevSample : block[i0];
+      final i1 = i0 + 1;
+      final s1 = i1 < block.length
+          ? block[i1]
+          : block[block.length - 1];
+      out.add(s0 * (1 - frac) + s1 * frac);
+      _pos += _ratio;
+    }
+    // Shift the coordinate frame to the next block: subtract this block's length,
+    // and remember its last sample as the new "index -1".
+    _pos -= block.length;
+    _prevSample = block[block.length - 1];
+    _hasPrev = true;
+    return Float32List.fromList(out);
+  }
+
+  /// Whether any block has been processed (exposed for tests).
+  bool get hasProcessed => _hasPrev;
+}
