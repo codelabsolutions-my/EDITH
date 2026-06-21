@@ -1,17 +1,16 @@
-"""Gmail connector — read the user's inbox over IMAP.
+"""Gmail connector — read the user's inbox. OAuth (preferred) or IMAP (fallback).
 
-A pragmatic, working email reader for the single-user dev path: it authenticates
-with a **Gmail App Password** (not the account password) over IMAP SSL, so EDITH can
-read mail without a full OAuth relying-party setup. Reading is a non-destructive
-action, so both tools are ``AUTO`` (no confirmation gate).
+Two backends behind one set of tools:
 
-Credentials come from ``ConnectorContext.credentials`` when present (the future
-multi-user path) and otherwise fall back to ``GMAIL_ADDRESS`` / ``GMAIL_APP_PASSWORD``
-in settings. With neither configured the tools stay inert and tell the user how to
-connect rather than erroring.
+- **OAuth / Gmail API** (preferred): the session injects a fresh access token
+  (minted from the user's encrypted OAuth grant — see ``integrations``) as
+  ``ctx.credentials["gmail_access_token"]``; reads go through the official Gmail
+  REST API. This is the proper, revocable, least-privilege path (``gmail.readonly``).
+- **IMAP / App Password** (dev fallback): if no OAuth grant is present but
+  ``GMAIL_ADDRESS`` + ``GMAIL_APP_PASSWORD`` are set, read over IMAP SSL.
 
-**TODO(P2):** replace the app-password path with Gmail OAuth + the incremental-scope
-credential store (per docs/specs/product-design.md), keyed per user.
+Reading is non-destructive, so both tools are ``AUTO``. With neither backend
+configured the tools stay inert and tell the user how to connect.
 """
 
 from __future__ import annotations
@@ -22,54 +21,65 @@ import email
 import imaplib
 from email.header import decode_header, make_header
 from email.message import Message
-from typing import Any
+from typing import Any, Protocol
 
 from ..config import get_settings
+from ..integrations.gmail_api import GmailApi
+from ..integrations.google_oauth import AUTHORIZE_URL, GMAIL_READONLY_SCOPE, TOKEN_URL
 from .base import (
     AuthKind,
     Connector,
     ConnectorContext,
     ConnectorManifest,
+    OAuthConfig,
     Tool,
     ToolClass,
 )
 from .registry import register
 
-# Cap how much body text we surface — enough for EDITH to summarise, not the whole mail.
 _SNIPPET_CHARS = 600
 _IMAP_TIMEOUT = 20
 
 
+class _Backend(Protocol):
+    async def recent(self, limit: int, unread_only: bool) -> list[dict[str, Any]]: ...
+    async def search(self, query: str, limit: int) -> list[dict[str, Any]]: ...
+
+
 @register
 class GmailConnector(Connector):
-    """Reads recent / matching emails from the user's Gmail over IMAP."""
+    """Reads recent / matching emails via the Gmail API (OAuth) or IMAP."""
 
     manifest = ConnectorManifest(
         key="gmail",
         name="Gmail",
         description="Read your Gmail inbox (recent messages and searches).",
-        auth=AuthKind.API_KEY,  # app password (dev path; OAuth in P2)
+        auth=AuthKind.OAUTH2,
+        oauth=OAuthConfig(
+            authorize_url=AUTHORIZE_URL,
+            token_url=TOKEN_URL,
+            scopes=(GMAIL_READONLY_SCOPE,),
+        ),
         maintainer="edith-core",
         official=True,
         tags=("email", "google"),
     )
 
     def tools(self, ctx: ConnectorContext) -> list[Tool]:
-        creds = self._resolve_credentials(ctx)
+        backend = self._resolve_backend(ctx)
 
         async def read_recent_emails(limit: int = 5, unread_only: bool = False) -> dict[str, Any]:
             """Return the most recent emails (optionally only unread)."""
-            if creds is None:
+            if backend is None:
                 return _not_connected()
-            criteria = "UNSEEN" if unread_only else "ALL"
-            emails = await asyncio.to_thread(_fetch_emails, creds, criteria, None, _clamp(limit))
+            emails = await backend.recent(_clamp(limit), unread_only)
             return {"connected": True, "count": len(emails), "emails": emails}
 
         async def search_emails(query: str, limit: int = 5) -> dict[str, Any]:
-            """Search the inbox (subject/body/sender) for ``query``."""
-            if creds is None:
+            """Search the inbox for ``query``."""
+            if backend is None:
                 return _not_connected()
-            emails = await asyncio.to_thread(_fetch_emails, creds, "ALL", query, _clamp(limit))
+            emails = await backend.search(query, _clamp(limit))
             return {"connected": True, "query": query, "count": len(emails), "emails": emails}
 
         return [
@@ -80,17 +90,11 @@ class GmailConnector(Connector):
                 parameters={
                     "type": "object",
                     "properties": {
-                        "limit": {
-                            "type": "integer",
-                            "description": "How many emails to return (1-20).",
-                        },
-                        "unread_only": {
-                            "type": "boolean",
-                            "description": "Only return unread emails.",
-                        },
+                        "limit": {"type": "integer", "description": "How many to return (1-20)."},
+                        "unread_only": {"type": "boolean", "description": "Only unread emails."},
                     },
                 },
-                tool_class=ToolClass.AUTO,  # reading is non-destructive
+                tool_class=ToolClass.AUTO,
                 handler=read_recent_emails,
             ),
             Tool(
@@ -101,10 +105,7 @@ class GmailConnector(Connector):
                     "type": "object",
                     "properties": {
                         "query": {"type": "string", "description": "What to search for."},
-                        "limit": {
-                            "type": "integer",
-                            "description": "How many emails to return (1-20).",
-                        },
+                        "limit": {"type": "integer", "description": "How many to return (1-20)."},
                     },
                     "required": ["query"],
                 },
@@ -114,29 +115,68 @@ class GmailConnector(Connector):
         ]
 
     @staticmethod
-    def _resolve_credentials(ctx: ConnectorContext) -> dict[str, str] | None:
-        if ctx.credentials and ctx.credentials.get("address") and ctx.credentials.get("password"):
-            return {
-                "host": ctx.credentials.get("host", "imap.gmail.com"),
-                "address": ctx.credentials["address"],
-                "password": ctx.credentials["password"],
-            }
+    def _resolve_backend(ctx: ConnectorContext) -> _Backend | None:
+        creds = ctx.credentials or {}
+        token = creds.get("gmail_access_token")
+        if token:
+            return _GmailApiBackend(str(token))
+        if creds.get("address") and creds.get("password"):
+            return _ImapBackend(
+                {
+                    "host": creds.get("host", "imap.gmail.com"),
+                    "address": creds["address"],
+                    "password": creds["password"],
+                }
+            )
         s = get_settings()
         if s.GMAIL_ADDRESS and s.GMAIL_APP_PASSWORD:
-            return {
-                "host": s.GMAIL_IMAP_HOST,
-                "address": s.GMAIL_ADDRESS,
-                "password": s.GMAIL_APP_PASSWORD,
-            }
+            return _ImapBackend(
+                {
+                    "host": s.GMAIL_IMAP_HOST,
+                    "address": s.GMAIL_ADDRESS,
+                    "password": s.GMAIL_APP_PASSWORD,
+                }
+            )
         return None
+
+
+# ─── backends ────────────────────────────────────────────────────────────────
+
+
+class _GmailApiBackend:
+    """OAuth backend over the Gmail REST API."""
+
+    def __init__(self, access_token: str) -> None:
+        self._api = GmailApi(access_token)
+
+    async def recent(self, limit: int, unread_only: bool) -> list[dict[str, Any]]:
+        return await self._api.list_messages(max_results=limit, unread_only=unread_only)
+
+    async def search(self, query: str, limit: int) -> list[dict[str, Any]]:
+        return await self._api.list_messages(max_results=limit, query=query)
+
+
+class _ImapBackend:
+    """App-password backend over IMAP SSL (runs blocking IMAP off the event loop)."""
+
+    def __init__(self, creds: dict[str, str]) -> None:
+        self._creds = creds
+
+    async def recent(self, limit: int, unread_only: bool) -> list[dict[str, Any]]:
+        criteria = "UNSEEN" if unread_only else "ALL"
+        return await asyncio.to_thread(_fetch_emails, self._creds, criteria, None, limit)
+
+    async def search(self, query: str, limit: int) -> list[dict[str, Any]]:
+        return await asyncio.to_thread(_fetch_emails, self._creds, "ALL", query, limit)
 
 
 def _not_connected() -> dict[str, Any]:
     return {
         "connected": False,
         "message": (
-            "Gmail is not connected. Add GMAIL_ADDRESS and a Gmail App Password "
-            "(GMAIL_APP_PASSWORD) to server/.env to let EDITH read your inbox."
+            "Gmail is not connected. Connect it with Google sign-in "
+            "(GET /integrations/google/gmail/connect), or set GMAIL_ADDRESS + "
+            "GMAIL_APP_PASSWORD in server/.env for the IMAP fallback."
         ),
     }
 
@@ -146,6 +186,9 @@ def _clamp(limit: int) -> int:
         return max(1, min(int(limit), 20))
     except (TypeError, ValueError):
         return 5
+
+
+# ─── IMAP helpers ─────────────────────────────────────────────────────────────
 
 
 def _fetch_emails(
@@ -193,8 +236,7 @@ def _decode(value: str) -> str:
 
 
 def _body_snippet(msg: Message) -> str:
-    text = _extract_plain_text(msg)
-    text = " ".join(text.split())  # collapse whitespace
+    text = " ".join(_extract_plain_text(msg).split())  # collapse whitespace
     return text[:_SNIPPET_CHARS]
 
 

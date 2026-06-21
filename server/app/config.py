@@ -38,7 +38,15 @@ class Settings(BaseSettings):
     JWT_REFRESH_TTL_SECONDS: int = 2592000
     TOKEN_ENCRYPTION_KEY: str = ""  # base64; encrypts OAuth *_enc tokens at rest (P2)
 
-    # ─── Email: Gmail via IMAP (dev path; P2 replaces with OAuth) ──────────
+    # ─── OAuth relying party (Google APIs — Gmail read-only, P2) ───────────
+    # Create an OAuth client in Google Cloud Console and add
+    # {PUBLIC_BASE_URL}/integrations/google/callback as an authorized redirect URI.
+    GOOGLE_CLIENT_ID: str = ""
+    GOOGLE_CLIENT_SECRET: str = ""
+    # Public origin used to build OAuth redirect URIs (no trailing slash).
+    PUBLIC_BASE_URL: str = "http://localhost:8000"
+
+    # ─── Email: Gmail via IMAP (dev path; preferred path is OAuth above) ───
     # Set GMAIL_ADDRESS + GMAIL_APP_PASSWORD (a Google App Password, not your
     # login password) to let EDITH read your inbox. Empty => the email tools stay
     # inert and report they need connecting.

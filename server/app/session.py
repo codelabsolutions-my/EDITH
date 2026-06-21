@@ -38,6 +38,7 @@ from .events import (
     InboundEvent,
     TextIn,
 )
+from .integrations.credentials import build_credentials
 from .voice.asr import IlmuASR
 from .voice.pipeline import VoicePipeline, WsSendBytes
 from .voice.text_transport import _CLOSE, TextTransport, WsSend
@@ -165,10 +166,18 @@ class Session:
 
     async def run(self) -> None:
         memory, recorder = await self._build_persistence()
+        # Resolve the user's connector credentials once (e.g. a fresh Gmail OAuth
+        # token), so tool dispatch is a plain sync lookup.
+        creds: dict[str, dict] = {}
+        if self._db_pool is not None:
+            try:
+                creds = await build_credentials(self._db_pool, self._settings, self._user_id)
+            except Exception:
+                log.exception("failed to resolve connector credentials")
         catalog = ToolCatalog(
             self._registry,
             user_id=self._user_id,
-            cred_lookup=lambda _key: None,  # identity-only in P1
+            cred_lookup=lambda key: creds.get(key),
             extra={"memory": memory},
         )
         agent = AgentLoop(

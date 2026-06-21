@@ -41,6 +41,8 @@ def _deterministic_env() -> AsyncIterator[None]:
     Clearing the ILMU key selects ``StubLLM`` (no network); a fixed JWT secret lets
     tests mint tokens the app verifies; ENV=test keeps dev-login enabled.
     """
+    import base64
+
     from app.config import reset_settings_cache
 
     os.environ["ILMU_API_KEY"] = ""
@@ -48,6 +50,10 @@ def _deterministic_env() -> AsyncIterator[None]:
     os.environ["JWT_SECRET"] = TEST_JWT_SECRET
     os.environ["ENV"] = "test"
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+    # A deterministic 32-byte AES key (base64) so token-crypto works in tests.
+    os.environ["TOKEN_ENCRYPTION_KEY"] = base64.b64encode(
+        b"edith-test-key-32-bytes-exactly!"
+    ).decode()
     reset_settings_cache()
     yield
     reset_settings_cache()

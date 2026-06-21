@@ -6,7 +6,13 @@ import asyncio
 from email.message import EmailMessage
 
 from app.connectors.base import ConnectorContext
-from app.connectors.gmail import GmailConnector, _clamp, _parse_message
+from app.connectors.gmail import (
+    GmailConnector,
+    _clamp,
+    _GmailApiBackend,
+    _ImapBackend,
+    _parse_message,
+)
 
 
 def _sample_email(
@@ -34,6 +40,19 @@ def test_clamp_bounds_limit() -> None:
     assert _clamp(100) == 20
     assert _clamp(5) == 5
     assert _clamp("bad") == 5  # type: ignore[arg-type]
+
+
+def test_oauth_token_selects_the_gmail_api_backend() -> None:
+    ctx = ConnectorContext(user_id="u", credentials={"gmail_access_token": "ya29.token"})
+    backend = GmailConnector._resolve_backend(ctx)
+    assert isinstance(backend, _GmailApiBackend)
+
+
+def test_app_password_creds_select_the_imap_backend() -> None:
+    ctx = ConnectorContext(
+        user_id="u", credentials={"address": "x@gmail.com", "password": "app-pw"}
+    )
+    assert isinstance(GmailConnector._resolve_backend(ctx), _ImapBackend)
 
 
 def test_tools_report_not_connected_without_credentials() -> None:

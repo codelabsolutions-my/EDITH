@@ -25,6 +25,7 @@ from .config import get_settings
 from .connectors import examples
 from .connectors.registry import registry
 from .db import Database, apply_migrations
+from .integrations.router import router as integrations_router
 from .logging_config import configure_logging, get_logger
 from .ws import router as ws_router
 
@@ -80,6 +81,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="EDITH", version="0.0.0", lifespan=lifespan)
     app.state.db_pool = None
     app.include_router(auth_router)
+    app.include_router(integrations_router)
     app.include_router(ws_router)
 
     @app.get("/healthz")
