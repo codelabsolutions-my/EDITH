@@ -46,6 +46,7 @@ def discover_connectors() -> None:
         gmail,
         google_calendar,
         google_contacts,
+        home_assistant,
         reminders,
         whatsapp,
     )

@@ -64,6 +64,12 @@ class Settings(BaseSettings):
     GMAIL_APP_PASSWORD: str = ""
     GMAIL_IMAP_HOST: str = "imap.gmail.com"
 
+    # ─── Smart home (P5 — Home Assistant REST API) ─────────────────────────
+    # A long-lived access token from your Home Assistant profile. Empty => the
+    # smart-home tools stay inert.
+    HOME_ASSISTANT_URL: str = ""  # e.g. http://homeassistant.local:8123
+    HOME_ASSISTANT_TOKEN: str = ""
+
     # ─── WhatsApp Business Cloud API (P4 — compliant send channel) ─────────
     # EDITH's own number via the official Cloud API. NEVER WhatsApp Web scraping.
     # Personal-assist (reading your own WhatsApp) is Android on-device, not here.
