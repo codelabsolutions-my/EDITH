@@ -20,6 +20,7 @@ from ..auth.crypto import TokenCryptoError, decrypt, encrypt, load_key
 from ..config import Settings
 from .google_oauth import (
     CALENDAR_READONLY_SCOPE,
+    CONTACTS_READONLY_SCOPE,
     GMAIL_READONLY_SCOPE,
     GoogleOAuth,
     OAuthError,
@@ -31,9 +32,11 @@ log = logging.getLogger("edith.integrations")
 _EXPIRY_SKEW = timedelta(seconds=60)
 
 # Which connector key gets the token for which granted scope.
+# scope -> (connector manifest key, credentials dict key the connector reads)
 _SCOPE_TO_CONNECTOR = {
     GMAIL_READONLY_SCOPE: ("gmail", "gmail_access_token"),
-    CALENDAR_READONLY_SCOPE: ("calendar", "calendar_access_token"),
+    CALENDAR_READONLY_SCOPE: ("google_calendar", "calendar_access_token"),
+    CONTACTS_READONLY_SCOPE: ("google_contacts", "contacts_access_token"),
 }
 
 

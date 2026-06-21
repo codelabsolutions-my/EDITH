@@ -24,6 +24,7 @@ from ..auth.tokens import AuthError, verify_access_token
 from ..config import Settings, get_settings
 from .google_oauth import (
     CALENDAR_READONLY_SCOPE,
+    CONTACTS_READONLY_SCOPE,
     GMAIL_READONLY_SCOPE,
     GoogleOAuth,
     OAuthError,
@@ -105,6 +106,12 @@ async def gmail_connect(token: str) -> RedirectResponse:
 async def calendar_connect(token: str) -> RedirectResponse:
     """Start Google Calendar consent (incremental — adds to any existing grant)."""
     return _start_consent(token, [CALENDAR_READONLY_SCOPE])
+
+
+@router.get("/google/contacts/connect")
+async def contacts_connect(token: str) -> RedirectResponse:
+    """Start Google Contacts consent (incremental — adds to any existing grant)."""
+    return _start_consent(token, [CONTACTS_READONLY_SCOPE])
 
 
 @router.get("/google/callback")

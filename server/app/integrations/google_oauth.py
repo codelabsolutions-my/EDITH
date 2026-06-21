@@ -23,6 +23,7 @@ USERINFO_URL = "https://openidconnect.googleapis.com/v1/userinfo"
 # Read-only Google API scopes (least privilege; incremental, just-in-time).
 GMAIL_READONLY_SCOPE = "https://www.googleapis.com/auth/gmail.readonly"
 CALENDAR_READONLY_SCOPE = "https://www.googleapis.com/auth/calendar.readonly"
+CONTACTS_READONLY_SCOPE = "https://www.googleapis.com/auth/contacts.readonly"
 
 _REQUEST_TIMEOUT = httpx.Timeout(30.0, connect=10.0)
 
