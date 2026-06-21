@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**M1 implemented (text-mode).** The agent runtime, real auth + Postgres persistence, the ILMU LLM, and a Flutter text client exist and are tested; voice (M2) is not built yet. The source-of-truth documents remain authoritative for the overall design — read them before extending:
+**M2 implemented + P2 wedge started.** Built and tested: the agent runtime, real auth + Postgres persistence, the ILMU LLM (text), the **voice pipeline** (ILMU ASR/TTS + VAD + barge-in, server-side live-verified), and the **Gmail + Google Calendar** connectors over OAuth (encrypted tokens). The Flutter client has text + voice modes (voice's live mic/speaker path needs a browser to verify). Remaining wedge: Contacts; then P3 proactivity. The source-of-truth documents remain authoritative for the overall design — read them before extending:
 
 - `docs/specs/product-design.md` — full vision, locked architecture, trust model, integration feasibility, 6-phase roadmap
 - `docs/specs/phase-1-mvp.md` — detailed Phase 1 build plan: gating spikes, build order, streaming/agent protocol, auth flow, DB schema

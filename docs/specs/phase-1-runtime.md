@@ -1,12 +1,10 @@
 # Phase 1 — Runtime architecture (Transport + agent loop)
 
-> Load-bearing design for the EDITH agent runtime. Status: **M1 implemented**
-> (text-mode, real Postgres persistence, JWT session auth, ILMU `nemo-super` LLM
-> with `StubLLM` fallback). Voice (`voice/pipeline.py`, `asr.py`, `tts.py`,
-> `vad.py`) lands in M2 against the same seams — nothing in this doc changes when
-> it does. The agent loop, Transport, and LLM seams are untouched by the M1 swaps;
-> only the implementations behind `Memory`, auth, and the new `TurnRecorder` seam
-> changed.
+> Load-bearing design for the EDITH agent runtime. Status: **M2 implemented**
+> (text + voice, real Postgres persistence, JWT session auth, ILMU `nemo-super` LLM,
+> ILMU ASR/TTS voice pipeline, Gmail + Calendar over OAuth). The agent loop, Transport,
+> and LLM seams held across every swap — voice was a new `Transport`, not a loop
+> change. See the milestone table at the foot of this doc for what's real vs. later.
 
 ## Core principle — text and voice are one loop
 
@@ -216,9 +214,22 @@ without an explicit reply, so nothing irreversible escapes a barge-in.
 | Conversations | none | **row per session** (`conversations`) | summaries / resume |
 | `extract_after_turn` | no-op | no-op (explicit `remember` persists) | LLM extraction + dedupe |
 | LLM | `StubLLM` | **`IlmuLLM` (`nemo-super`)** when `ILMU_API_KEY` set; `StubLLM` fallback | `ilmu-v3.1` Manglish gen / frontier escape hatch |
-| Email | — | **`gmail` connector** (IMAP read via App Password; `read_recent_emails`, `search_emails`) | Gmail OAuth + incremental scopes (P2) |
+| Email | — | **`gmail` connector** — Gmail API over OAuth (`gmail.readonly`), IMAP App-Password fallback | — |
+| Calendar | — | **`google_calendar` connector** — Calendar API over OAuth (`calendar.readonly`) | — |
 | `web_lookup` | canned dict | canned dict | real search API (post-MVP) |
-| Transport | `TextTransport` | `TextTransport` | `VoicePipeline` (VAD→ASR→loop→TTS) (M2) |
+| Transport | `TextTransport` | **`VoicePipeline`** (VAD→ASR→loop→TTS, barge-in) selected by auth-frame `mode:"voice"`; `TextTransport` otherwise | sub-sentence streaming / Silero VAD |
+
+### M2 voice + integrations (now)
+
+- **Voice** rides the same `AgentLoop`; only the `Transport` differs. `VoicePipeline`
+  drains mic PCM (16kHz) → energy VAD endpoints an utterance → ILMU ASR → `UserTurn`;
+  the streamed reply is chunked into sentences → ILMU TTS (24kHz PCM) → binary frames,
+  played back-to-back; speech during playback cancels the turn. voice-seconds metered
+  to `usage_log`. Live-verified server-side (spoken query → tool call → spoken reply).
+- **OAuth integrations** (`integrations/`): Google OAuth relying party with AES-256-GCM
+  token storage in `provider_accounts.*_enc`; one grant covers Gmail + Calendar via
+  incremental scopes. The session resolves a fresh access token per connection and
+  injects it into the tool catalog, so connectors never touch crypto/refresh.
 
 ### M1 wiring notes
 
