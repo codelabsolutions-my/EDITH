@@ -44,7 +44,7 @@ from .voice.asr import IlmuASR
 from .voice.pipeline import VoicePipeline, WsSendBytes
 from .voice.text_transport import _CLOSE, TextTransport, WsSend
 from .voice.transport import Transport
-from .voice.tts import IlmuTTS
+from .voice.tts import create_tts
 
 log = logging.getLogger("edith.session")
 
@@ -127,7 +127,7 @@ class Session:
                 ws_send,
                 ws_send_bytes,
                 IlmuASR(self._settings),
-                IlmuTTS(self._settings),
+                create_tts(self._settings),
                 settings=self._settings,
                 usage_sink=self._record_usage,
             )

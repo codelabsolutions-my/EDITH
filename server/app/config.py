@@ -91,6 +91,15 @@ class Settings(BaseSettings):
     # token provider) push is logged, not delivered.
     FCM_PROJECT_ID: str = ""
 
+    # ─── TTS provider selection (escape hatch / A-B) ──────────────────────
+    # "ilmu" (default; Manglish/BM voice) or "openai". OpenAI returns 24kHz PCM
+    # too, so it slots into the same voice pipeline. ASR stays ILMU regardless.
+    TTS_PROVIDER: str = "ilmu"
+    OPENAI_API_BASE: str = "https://api.openai.com/v1"
+    OPENAI_API_KEY: str = ""
+    OPENAI_TTS_MODEL: str = "gpt-4o-mini-tts"
+    OPENAI_TTS_VOICE: str = "alloy"
+
     # ─── ILMU (OpenAI-compatible) ──────────────────────────────────────────
     ILMU_API_BASE: str = ""
     ILMU_API_KEY: str = ""  # optional: empty => voice/LLM stays stubbed

@@ -32,7 +32,17 @@ class WebAudioPlayback implements AudioPlayback {
     if (existing != null) {
       return existing;
     }
-    final ctx = web.AudioContext();
+    // Pin the context to the server's 24 kHz so our 24 kHz buffers play 1:1 with
+    // no browser resampling (a resampling mismatch is a classic cause of garbled
+    // playback). Fall back to the default-rate context if 24 kHz isn't supported.
+    web.AudioContext ctx;
+    try {
+      ctx = web.AudioContext(
+        web.AudioContextOptions(sampleRate: AudioFormat.playbackSampleRate.toDouble()),
+      );
+    } catch (_) {
+      ctx = web.AudioContext();
+    }
     _ctx = ctx;
     ctx.resume();
     return ctx;

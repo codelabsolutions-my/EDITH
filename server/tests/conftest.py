@@ -50,6 +50,23 @@ def _deterministic_env() -> AsyncIterator[None]:
     os.environ["JWT_SECRET"] = TEST_JWT_SECRET
     os.environ["ENV"] = "test"
     os.environ["DATABASE_URL"] = TEST_DATABASE_URL
+    # Clear all external-provider creds so a developer's real .env can't change
+    # test behaviour or trigger live network calls. Tests that need a provider set
+    # it explicitly (e.g. the OIDC login tests monkeypatch GOOGLE_CLIENT_ID).
+    for var in (
+        "GOOGLE_CLIENT_ID",
+        "GOOGLE_CLIENT_SECRET",
+        "GOOGLE_ALLOWED_AUDIENCES",
+        "OPENAI_API_KEY",
+        "GMAIL_ADDRESS",
+        "GMAIL_APP_PASSWORD",
+        "WHATSAPP_PHONE_NUMBER_ID",
+        "WHATSAPP_ACCESS_TOKEN",
+        "HOME_ASSISTANT_URL",
+        "HOME_ASSISTANT_TOKEN",
+        "TTS_PROVIDER",
+    ):
+        os.environ[var] = ""
     # A deterministic 32-byte AES key (base64) so token-crypto works in tests.
     os.environ["TOKEN_ENCRYPTION_KEY"] = base64.b64encode(
         b"edith-test-key-32-bytes-exactly!"

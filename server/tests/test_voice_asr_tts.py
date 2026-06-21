@@ -11,9 +11,10 @@ import wave
 from io import BytesIO
 
 import httpx
+import pytest
 from app.config import Settings
 from app.voice.asr import IlmuASR, pcm_to_wav
-from app.voice.tts import IlmuTTS, pcm_seconds
+from app.voice.tts import IlmuTTS, OpenAITTS, create_tts, pcm_seconds
 
 
 def _settings() -> Settings:
@@ -83,9 +84,49 @@ def test_tts_empty_text_skips_request() -> None:
 
 
 def test_clients_require_credentials() -> None:
-    import pytest
-
     with pytest.raises(ValueError):
         IlmuASR(Settings(ILMU_API_BASE="", ILMU_API_KEY=""))
     with pytest.raises(ValueError):
         IlmuTTS(Settings(ILMU_API_BASE="", ILMU_API_KEY=""))
+    with pytest.raises(ValueError):
+        OpenAITTS(Settings(OPENAI_API_KEY=""))
+
+
+def test_openai_tts_requests_pcm() -> None:
+    seen = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json
+
+        seen["path"] = request.url.path
+        seen["body"] = json.loads(request.content)
+        seen["auth"] = request.headers["authorization"]
+        return httpx.Response(200, content=b"\x10\x00" * 2400)
+
+    tts = OpenAITTS(
+        Settings(OPENAI_API_KEY="sk-openai", OPENAI_TTS_VOICE="alloy"),
+        transport=httpx.MockTransport(handler),
+    )
+    pcm = asyncio.run(tts.synthesize("Hello"))
+    assert pcm == b"\x10\x00" * 2400  # raw 24kHz PCM, same as the pipeline expects
+    assert seen["path"].endswith("/audio/speech")
+    assert seen["body"]["response_format"] == "pcm"
+    assert seen["body"]["voice"] == "alloy"
+    assert seen["auth"] == "Bearer sk-openai"
+
+
+def test_create_tts_selects_provider() -> None:
+    ilmu = Settings(ILMU_API_BASE="https://api.test/v1", ILMU_API_KEY="sk-ilmu")
+    assert isinstance(create_tts(ilmu), IlmuTTS)
+    openai = Settings(
+        ILMU_API_BASE="https://api.test/v1",
+        ILMU_API_KEY="sk-ilmu",
+        TTS_PROVIDER="openai",
+        OPENAI_API_KEY="sk-openai",
+    )
+    assert isinstance(create_tts(openai), OpenAITTS)
+    # openai selected but no key -> falls back to ILMU.
+    no_key = Settings(
+        ILMU_API_BASE="https://api.test/v1", ILMU_API_KEY="sk-ilmu", TTS_PROVIDER="openai"
+    )
+    assert isinstance(create_tts(no_key), IlmuTTS)

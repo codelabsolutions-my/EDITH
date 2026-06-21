@@ -64,3 +64,47 @@ class IlmuTTS(StreamingTTS):
             resp = await client.post(f"{self._base}/audio/speech", json=payload, headers=headers)
             resp.raise_for_status()
             return resp.content
+
+
+class OpenAITTS(StreamingTTS):
+    """OpenAI TTS client — an escape hatch / A-B alternative to ILMU.
+
+    Requests ``response_format=pcm``, which OpenAI returns as raw 24 kHz mono
+    16-bit little-endian PCM — the same format the voice pipeline plays, so it
+    drops in without any change to playback. English-centric, so it loses the
+    Manglish/BM quality ILMU provides; use for comparison or as a fallback.
+    """
+
+    def __init__(
+        self, settings: Settings, *, transport: httpx.AsyncBaseTransport | None = None
+    ) -> None:
+        if not settings.OPENAI_API_KEY:
+            raise ValueError("OpenAITTS requires OPENAI_API_KEY")
+        self._base = settings.OPENAI_API_BASE.rstrip("/")
+        self._key = settings.OPENAI_API_KEY
+        self._model = settings.OPENAI_TTS_MODEL
+        self._voice = settings.OPENAI_TTS_VOICE
+        self._transport = transport
+
+    async def synthesize(self, text: str) -> bytes:
+        text = text.strip()
+        if not text:
+            return b""
+        payload: dict[str, Any] = {
+            "model": self._model,
+            "voice": self._voice,
+            "input": text,
+            "response_format": "pcm",  # raw 24kHz mono 16-bit LE PCM
+        }
+        headers = {"Authorization": f"Bearer {self._key}"}
+        async with httpx.AsyncClient(timeout=_REQUEST_TIMEOUT, transport=self._transport) as client:
+            resp = await client.post(f"{self._base}/audio/speech", json=payload, headers=headers)
+            resp.raise_for_status()
+            return resp.content
+
+
+def create_tts(settings: Settings) -> StreamingTTS:
+    """Pick the TTS provider from settings (ILMU default; OpenAI when selected)."""
+    if settings.TTS_PROVIDER.lower() == "openai" and settings.OPENAI_API_KEY:
+        return OpenAITTS(settings)
+    return IlmuTTS(settings)
