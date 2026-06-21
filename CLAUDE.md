@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project status
 
-**M2 implemented + P2 wedge started.** Built and tested: the agent runtime, real auth + Postgres persistence, the ILMU LLM (text), the **voice pipeline** (ILMU ASR/TTS + VAD + barge-in, server-side live-verified), and the **Gmail + Google Calendar** connectors over OAuth (encrypted tokens). The Flutter client has text + voice modes (voice's live mic/speaker path needs a browser to verify). Remaining wedge: Contacts; then P3 proactivity. The source-of-truth documents remain authoritative for the overall design — read them before extending:
+**M2 + P2 wedge (Gmail/Calendar) + SSO + mobile.** Built and tested: the agent runtime, real auth + Postgres persistence, ILMU LLM (text), the **voice pipeline** (ILMU ASR/TTS + VAD + barge-in, server-side live-verified), **Gmail + Google Calendar** connectors over OAuth (encrypted tokens), and **real Google OIDC login** (`/auth/google` verifies the id_token). The Flutter client runs on web + **Android/iOS** with Sign-in-with-Google, on-device voice (native `record`/`flutter_sound`; web AudioWorklet), and an **Android home-screen widget** (`flutter build apk` passes). Live mic/speaker, the widget on a home screen, and the Google round-trip need a real device + Google OAuth client IDs to verify. Remaining: Contacts connector; P3 proactivity. The source-of-truth documents remain authoritative — read them before extending:
 
 - `docs/specs/product-design.md` — full vision, locked architecture, trust model, integration feasibility, 6-phase roadmap
 - `docs/specs/phase-1-mvp.md` — detailed Phase 1 build plan: gating spikes, build order, streaming/agent protocol, auth flow, DB schema
