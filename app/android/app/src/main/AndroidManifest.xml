@@ -1,4 +1,7 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Voice mode mic capture (native capture is stubbed for now; web is the
+         priority target). -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <application
         android:label="edith_app"
         android:name="${applicationName}"

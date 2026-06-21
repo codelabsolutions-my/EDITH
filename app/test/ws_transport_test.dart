@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:edith_app/ws/events.dart';
 import 'package:edith_app/ws/ws_transport.dart';
@@ -85,11 +86,17 @@ void main() {
 
   tearDown(() => transport.dispose());
 
-  test('connect sends the auth frame first', () {
+  test('connect sends the auth frame first (text mode by default)', () {
     transport.connect('tok-123');
     expect(fake.sentFrames, hasLength(1));
     final frame = jsonDecode(fake.sentFrames.single as String);
-    expect(frame, {'type': 'auth', 'token': 'tok-123'});
+    expect(frame, {'type': 'auth', 'token': 'tok-123', 'mode': 'text'});
+  });
+
+  test('connect with mode:voice carries it in the auth frame', () {
+    transport.connect('tok', mode: 'voice');
+    final frame = jsonDecode(fake.sentFrames.single as String);
+    expect(frame, {'type': 'auth', 'token': 'tok', 'mode': 'voice'});
   });
 
   test('inbound frames are decoded into typed events', () async {
@@ -143,5 +150,55 @@ void main() {
       {'type': 'confirm', 'action_id': 'a1', 'ok': true},
       {'type': 'barge_in'},
     ]);
+  });
+
+  test('inbound binary frames route to audioFrames, not events', () async {
+    transport.connect('tok');
+    final events = <InboundEvent>[];
+    final audio = <Uint8List>[];
+    final eSub = transport.events.listen(events.add);
+    final aSub = transport.audioFrames.listen(audio.add);
+
+    fake.emit(Uint8List.fromList([1, 2, 3, 4]));
+    fake.emit(jsonEncode({'type': 'turn_end'}));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(audio.single, [1, 2, 3, 4]);
+    expect(events.single, isA<TurnEndEvent>());
+    await eSub.cancel();
+    await aSub.cancel();
+  });
+
+  test('sendAudio writes a raw binary frame (no JSON wrapping)', () {
+    transport.connect('tok');
+    fake.sentFrames.clear();
+
+    transport.sendAudio(Uint8List.fromList([5, 6, 7, 8]));
+
+    expect(fake.sentFrames.single, isA<Uint8List>());
+    expect(fake.sentFrames.single, [5, 6, 7, 8]);
+  });
+
+  test('reconnect tears down and re-auths in the new mode', () async {
+    // A fresh channel per connect, as the real factory does.
+    final channels = <FakeWebSocketChannel>[];
+    final reconnecting = WsTransport(
+      url: 'ws://test/ws',
+      channelFactory: (_) {
+        final c = FakeWebSocketChannel();
+        channels.add(c);
+        return c;
+      },
+    );
+    addTearDown(reconnecting.dispose);
+
+    reconnecting.connect('tok', mode: 'text');
+    await reconnecting.reconnect('tok', mode: 'voice');
+
+    expect(channels, hasLength(2));
+    final firstAuth = jsonDecode(channels[0].sentFrames.single as String);
+    expect(firstAuth['mode'], 'text');
+    final secondAuth = jsonDecode(channels[1].sentFrames.single as String);
+    expect(secondAuth, {'type': 'auth', 'token': 'tok', 'mode': 'voice'});
   });
 }

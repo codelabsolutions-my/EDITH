@@ -5,6 +5,8 @@ import 'auth/auth_user.dart';
 import 'auth/token_store.dart';
 import 'chat/chat_controller.dart';
 import 'chat/chat_models.dart';
+import 'voice/voice_controller.dart';
+import 'voice/voice_state.dart';
 import 'ws/ws_transport.dart';
 
 /// Secure token store, shared by the auth service and (later) reconnect logic.
@@ -28,6 +30,18 @@ class AuthUserNotifier extends Notifier<AuthUser?> {
 final authUserProvider =
     NotifierProvider<AuthUserNotifier, AuthUser?>(AuthUserNotifier.new);
 
+/// The current access token, held in memory so the chat screen can reconnect
+/// the WS in a different mode (text <-> voice) without re-reading storage.
+class AccessTokenNotifier extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void set(String? token) => state = token;
+}
+
+final accessTokenProvider =
+    NotifierProvider<AccessTokenNotifier, String?>(AccessTokenNotifier.new);
+
 /// The `/ws` transport, disposed with the provider scope.
 final wsTransportProvider = Provider<WsTransport>((ref) {
   final transport = WsTransport();
@@ -39,3 +53,7 @@ final wsTransportProvider = Provider<WsTransport>((ref) {
 /// [wsTransportProvider] inside its `build`.
 final chatControllerProvider =
     NotifierProvider<ChatController, ChatState>(ChatController.new);
+
+/// Voice subsystem: mic capture, PCM playback, barge-in, orb level.
+final voiceControllerProvider =
+    NotifierProvider<VoiceController, VoiceState>(VoiceController.new);

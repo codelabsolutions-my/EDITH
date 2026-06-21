@@ -43,6 +43,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             displayName: name,
           );
       ref.read(authUserProvider.notifier).set(session.user);
+      ref.read(accessTokenProvider.notifier).set(session.accessToken);
       ref.read(chatControllerProvider.notifier).connect(session.accessToken);
       if (!mounted) {
         return;

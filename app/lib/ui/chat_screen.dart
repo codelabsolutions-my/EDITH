@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../chat/chat_models.dart';
 import '../providers.dart';
 import '../ws/events.dart';
+import 'orb.dart';
 
 /// The text chat surface with EDITH.
 class ChatScreen extends ConsumerStatefulWidget {
@@ -54,6 +55,26 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     });
   }
 
+  /// Flip between text and voice mode: reconnect the WS in the new mode, then
+  /// start or stop the mic.
+  Future<void> _toggleVoice() async {
+    final voice = ref.read(voiceControllerProvider);
+    final token = ref.read(accessTokenProvider);
+    if (token == null) {
+      return;
+    }
+    final transport = ref.read(wsTransportProvider);
+    if (voice.isVoiceOn) {
+      await ref.read(voiceControllerProvider.notifier).disable();
+      // reconnect re-runs the auth handshake; the chat layer resets `connected`
+      // on the next auth_ok.
+      await transport.reconnect(token, mode: 'text');
+    } else {
+      await transport.reconnect(token, mode: 'voice');
+      await ref.read(voiceControllerProvider.notifier).enable();
+    }
+  }
+
   void _send() {
     final text = _inputController.text;
     if (text.trim().isEmpty) {
@@ -91,17 +112,36 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
   Widget build(BuildContext context) {
     final state = ref.watch(chatControllerProvider);
     final user = ref.watch(authUserProvider);
+    final voice = ref.watch(voiceControllerProvider);
 
     return Scaffold(
       appBar: AppBar(
         title: Text(user?.displayName.isNotEmpty == true
             ? 'EDITH — ${user!.displayName}'
             : 'EDITH'),
+        actions: [
+          IconButton(
+            tooltip: voice.isVoiceOn ? 'Switch to text' : 'Switch to voice',
+            icon: Icon(voice.isVoiceOn ? Icons.keyboard : Icons.mic),
+            onPressed: _toggleVoice,
+          ),
+        ],
       ),
       body: Column(
         children: [
           if (state.errorMessage != null)
             _Banner(text: state.errorMessage!),
+          if (voice.errorMessage != null)
+            _Banner(text: voice.errorMessage!),
+          if (voice.isVoiceOn)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Orb(
+                level: voice.outputLevel,
+                sessionState: voice.sessionState,
+                micState: voice.micState,
+              ),
+            ),
           Expanded(
             child: state.messages.isEmpty
                 ? const Center(
