@@ -32,6 +32,16 @@ class Transport(abc.ABC):
     """Abstract transport — the seam the agent loop drives."""
 
     @abc.abstractmethod
+    async def pump(self) -> None:
+        """Continuously drain the inbound wire into turns/confirms/barge-in.
+
+        Runs for the life of the session as its own task (the session starts it),
+        independent of the agent loop, so confirm replies and barge-in are handled
+        even while a turn is blocked awaiting confirmation.
+        """
+        raise NotImplementedError
+
+    @abc.abstractmethod
     def user_turns(self) -> AsyncIterator[UserTurn]:
         """Yield one :class:`UserTurn` per user input, until the session ends."""
         raise NotImplementedError

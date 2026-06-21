@@ -38,7 +38,11 @@ from .events import (
     InboundEvent,
     TextIn,
 )
+from .voice.asr import IlmuASR
+from .voice.pipeline import VoicePipeline, WsSendBytes
 from .voice.text_transport import _CLOSE, TextTransport, WsSend
+from .voice.transport import Transport
+from .voice.tts import IlmuTTS
 
 log = logging.getLogger("edith.session")
 
@@ -97,6 +101,8 @@ class Session:
         db_pool: asyncpg.Pool | None = None,
         settings: Settings | None = None,
         llm: LLMProvider | None = None,
+        ws_send_bytes: WsSendBytes | None = None,
+        mode: str = "text",
     ) -> None:
         self._user_id = user_id
         self._registry = registry
@@ -105,8 +111,38 @@ class Session:
         self._settings = settings or get_settings()
         self._llm_override = llm
         self._inbound: asyncio.Queue[InboundEvent | object] = asyncio.Queue()
-        self._transport = TextTransport(self._inbound, ws_send)
         self._conversation_id: UUID | None = None
+        self._transport = self._build_transport(mode, ws_send, ws_send_bytes)
+
+    def _build_transport(
+        self, mode: str, ws_send: WsSend, ws_send_bytes: WsSendBytes | None
+    ) -> Transport:
+        """Voice mode needs ILMU + a binary sender; otherwise fall back to text."""
+        if mode == "voice" and self._settings.voice_enabled and ws_send_bytes is not None:
+            log.info("voice mode", extra={"user_id": self._user_id})
+            return VoicePipeline(
+                self._inbound,
+                ws_send,
+                ws_send_bytes,
+                IlmuASR(self._settings),
+                IlmuTTS(self._settings),
+                settings=self._settings,
+                usage_sink=self._record_usage,
+            )
+        if mode == "voice":
+            log.warning(
+                "voice requested but unavailable (no ILMU key / binary channel) — using text",
+                extra={"user_id": self._user_id},
+            )
+        return TextTransport(self._inbound, ws_send)
+
+    async def _record_usage(self, kind: str, seconds: float) -> None:
+        if self._db_pool is None:
+            return
+        async with self._db_pool.acquire() as conn:
+            await repo.insert_usage(
+                conn, user_id=self._user_id, call_type=kind, voice_seconds=seconds
+            )
 
     def _build_llm(self) -> LLMProvider:
         if self._llm_override is not None:

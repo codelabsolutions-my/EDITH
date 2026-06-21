@@ -100,6 +100,10 @@ class RecordingTransport(Transport):
         self.confirm_requests: list[tuple[str, str]] = []
         self._barge_in = asyncio.Event()
 
+    async def pump(self) -> None:
+        # The scripted transport needs no inbound pump; turns are pre-seeded.
+        return None
+
     async def user_turns(self) -> AsyncIterator[UserTurn]:
         for text in self._turns:
             yield UserTurn(text=text, audio_present=False)

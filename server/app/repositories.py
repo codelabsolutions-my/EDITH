@@ -9,6 +9,7 @@ day one, no global state.
 from __future__ import annotations
 
 from datetime import datetime
+from decimal import Decimal
 from typing import Any
 from uuid import UUID
 
@@ -142,6 +143,31 @@ async def insert_action(
         tool,
         args_summary,
         result_summary,
+    )
+
+
+# ─── usage_log ──────────────────────────────────────────────────────────────
+
+
+async def insert_usage(
+    conn: asyncpg.Connection,
+    *,
+    user_id: UUID | str,
+    call_type: str,
+    voice_seconds: float = 0.0,
+    input_tokens: int = 0,
+    output_tokens: int = 0,
+) -> None:
+    await conn.execute(
+        """
+        INSERT INTO usage_log (user_id, call_type, voice_seconds, input_tokens, output_tokens)
+        VALUES ($1, $2, $3, $4, $5)
+        """,
+        _as_uuid(user_id),
+        call_type,
+        Decimal(str(round(voice_seconds, 3))),  # NUMERIC(10,3) wants a Decimal
+        input_tokens,
+        output_tokens,
     )
 
 

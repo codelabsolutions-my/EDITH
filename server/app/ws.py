@@ -22,8 +22,12 @@ log = logging.getLogger("edith.ws")
 router = APIRouter()
 
 
-async def _auth_handshake(ws: WebSocket) -> Any | None:
-    """Run the first-frame auth handshake. Returns the user, or None to close."""
+async def _auth_handshake(ws: WebSocket) -> tuple[Any, str] | None:
+    """Run the first-frame auth handshake. Returns (user, mode), or None to close.
+
+    The auth frame may carry ``"mode": "voice"`` to request the voice pipeline;
+    anything else (or absent) is text mode.
+    """
     try:
         first = await ws.receive_json()
     except Exception:
@@ -40,21 +44,27 @@ async def _auth_handshake(ws: WebSocket) -> Any | None:
         await ws.send_json({"type": "error", "code": "auth_failed", "message": str(exc)})
         return None
 
+    mode = "voice" if first.get("mode") == "voice" else "text"
     await ws.send_json(
-        {"type": "auth_ok", "user": {"id": user.id, "display_name": user.display_name}}
+        {
+            "type": "auth_ok",
+            "user": {"id": user.id, "display_name": user.display_name},
+            "mode": mode,
+        }
     )
-    return user
+    return user, mode
 
 
 def _make_endpoint(reg: ConnectorRegistry) -> Any:
     async def ws_endpoint(websocket: WebSocket) -> None:
         await websocket.accept()
-        user = await _auth_handshake(websocket)
-        if user is None:
+        handshake = await _auth_handshake(websocket)
+        if handshake is None:
             await websocket.close(code=4401)
             return
+        user, mode = handshake
 
-        log.info("ws session started", extra={"user_id": user.id})
+        log.info("ws session started", extra={"user_id": user.id, "mode": mode})
 
         async def ws_receive() -> WsMessage:
             # Returns the next frame as JSON or bytes; raises on disconnect.
@@ -75,6 +85,8 @@ def _make_endpoint(reg: ConnectorRegistry) -> Any:
             registry=reg,
             ws_send=websocket.send_json,
             ws_receive=ws_receive,
+            ws_send_bytes=websocket.send_bytes,
+            mode=mode,
             db_pool=getattr(websocket.app.state, "db_pool", None),
         )
         try:
