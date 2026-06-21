@@ -47,6 +47,7 @@ def discover_connectors() -> None:
         google_calendar,
         google_contacts,
         reminders,
+        whatsapp,
     )
 
 

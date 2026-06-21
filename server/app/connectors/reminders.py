@@ -78,7 +78,8 @@ class RemindersConnector(Connector):
                         "text": {"type": "string", "description": "What to remind about."},
                         "remind_at": {
                             "type": "string",
-                            "description": "When, as an ISO-8601 timestamp (e.g. 2026-06-22T09:00:00+08:00).",
+                            "description": "When, as an ISO-8601 timestamp "
+                            "(e.g. 2026-06-22T09:00:00+08:00).",
                         },
                     },
                     "required": ["text", "remind_at"],

@@ -12,6 +12,7 @@ durable queue / leader, but the seam (``run_once``) wouldn't change.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
 from datetime import UTC, datetime
 
@@ -40,10 +41,8 @@ class ProactiveScheduler:
     async def stop(self) -> None:
         if self._task is not None:
             self._task.cancel()
-            try:
+            with contextlib.suppress(asyncio.CancelledError):
                 await self._task
-            except asyncio.CancelledError:
-                pass
             self._task = None
 
     async def _loop(self) -> None:

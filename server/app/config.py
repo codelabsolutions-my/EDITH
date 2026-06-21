@@ -64,6 +64,13 @@ class Settings(BaseSettings):
     GMAIL_APP_PASSWORD: str = ""
     GMAIL_IMAP_HOST: str = "imap.gmail.com"
 
+    # ─── WhatsApp Business Cloud API (P4 — compliant send channel) ─────────
+    # EDITH's own number via the official Cloud API. NEVER WhatsApp Web scraping.
+    # Personal-assist (reading your own WhatsApp) is Android on-device, not here.
+    WHATSAPP_PHONE_NUMBER_ID: str = ""
+    WHATSAPP_ACCESS_TOKEN: str = ""
+    WHATSAPP_API_VERSION: str = "v21.0"
+
     # ─── Proactivity (P3): scheduler + push ────────────────────────────────
     PROACTIVE_POLL_SECONDS: float = 30.0
     # Firebase project id for FCM HTTP v1 push. Without it (and a service-account
