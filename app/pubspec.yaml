@@ -41,7 +41,7 @@ dependencies:
   web: ^1.1.1
   google_sign_in: ^7.2.0
   record: ^7.1.0
-  permission_handler: ^12.0.3
+  permission_handler: ^13.0.1
   flutter_sound: ^9.30.0
   home_widget: ^0.9.3
 
